@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Bring in uv
-COPY --from=ghcr.io/astral-sh/uv:python3.12-bookworm-slim /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy manifests
 COPY pyproject.toml uv.lock ./
