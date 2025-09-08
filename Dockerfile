@@ -32,4 +32,4 @@ COPY run.py ./
 
 
 # Default command runs your launcher, which invokes .venv/bin/python
-CMD ["python", "run.py"]
+CMD [".venv/bin/python", "run.py"]
