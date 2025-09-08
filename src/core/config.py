@@ -28,6 +28,13 @@ class Translate(BaseModel):
     nfo_dir: Path
 
 
+class Translator(BaseModel):
+    openai_api_key: str
+    openai_base_url: str
+    model_list: list[str]
+    prompt_file: Path
+
+
 class Freshrss(BaseModel):
     freshrss_url: str
     freshrss_api_key: str
@@ -59,6 +66,7 @@ class Config(BaseSettings):
     archive: Archive
     mapping: Mapping
     translate: Translate
+    translator: Translator
     freshrss: Freshrss
     rss: Rss
     emby: Emby
