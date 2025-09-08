@@ -1,0 +1,39 @@
+[project]
+name = "embyx"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiofiles>=24.1.0",
+    "colorlog>=6.9.0",
+    "defusedxml>=0.7.1",
+    "httpx>=0.28.1",
+    "humanfriendly>=10.0",
+    "nyaapy>=0.7",
+    "pydantic>=2.11.3",
+    "pydantic-settings>=2.9.1",
+    "pyquery>=2.0.1",
+    "tenacity>=9.1.2",
+    "tqdm>=4.67.1",
+    "typed-argument-parser>=1.10.1",
+]
+
+[tool.ruff]
+line-length = 140
+select = ['ALL']
+ignore = [
+  'Q000',    # Double quotes
+  'PLC0414', # Import alias
+  'D407', # Lines for docstrings
+  'ANN401', # Any type
+  'PERF203', # try-except in loop
+  'D', # pydocstyle
+  'DTZ005', # tz not set
+  'PLW0603', # global variable
+]
+
+[tool.ruff.format]
+quote-style = 'single'
+indent-style = 'space'
+line-ending = 'lf'
