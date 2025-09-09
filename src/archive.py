@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 
 from src.core import config, logger
-from src.utils import get_avid, get_brand, is_video
+from src.utils import get_avid, get_brand, has_video_suffix, is_video
 
 log = logger.get('archive')
 cfg = config.archive
@@ -108,7 +108,7 @@ def clear_dirname(root: Path) -> None:
     for folder in root.iterdir():
         if not folder.is_dir():
             continue
-        if folder.suffix:
+        if has_video_suffix(folder):
             log.info('clearing dirname for %s -> %s', folder.name, folder.stem)
             new_path = root / folder.stem
             if new_path.exists():
