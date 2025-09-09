@@ -6,7 +6,7 @@ from defusedxml.ElementTree import parse as xmlparse
 from tqdm import tqdm
 
 from src.core import config, logger
-from src.utils import translator
+from src.utils import get_avid, translator
 
 XML_ESCAPE = str.maketrans(
     {
@@ -30,6 +30,13 @@ def replace_xml(xml: str, tag: str, content: str) -> str:
         flags=re.DOTALL,
         count=1,
     )
+
+
+
+def check_translated_by_title(title: str, original_title: str) -> bool:
+    if original_title in title:
+        return False
+    return re.sub(r'-cd\d+', '', title) != get_avid(title)
 
 
 async def translate(xml_text: str) -> str:
@@ -102,7 +109,7 @@ def get_process_list() -> dict[Path, dict[str, str]]:
         if title_elem is None:
             log.error('Title not found in %s', nfo_path)
         # check if title need to be translated
-        if title_translated_elem is None and original_title_elem is not None:
+        if title_translated_elem is None and original_title_elem is not None and not check_translated_by_title(title_elem.text, original_title_elem.text):  # noqa: E501
             process_list[nfo_path] = {
                 'title': title_elem.text,
                 'original_title': original_title_elem.text,
