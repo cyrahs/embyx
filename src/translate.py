@@ -8,6 +8,18 @@ from tqdm import tqdm
 from src.core import config, logger
 from src.utils import get_avid, translator
 
+XML_ESCAPE = str.maketrans(
+    {
+        '&': '＆',  # noqa: RUF001
+        '<': '＜',  # noqa: RUF001
+        '>': '＞',  # noqa: RUF001
+        '"': '＂',  # noqa: RUF001
+        "'": '＇',  # noqa: RUF001
+        '\n': '<br>',
+    },
+)
+
+
 log = logger.get('translate')
 
 
@@ -24,8 +36,9 @@ def replace_xml(xml: str, tag: str, content: str) -> str:
         if inner.startswith('<![CDATA[') and inner.endswith(']]>'):
             return f'<{tag}><![CDATA[{content}]]></{tag}>'
         return f'<{tag}>{content}</{tag}>'
+
     return re.sub(
-        fr'<{tag}>(.*?)</{tag}>',
+        rf'<{tag}>(.*?)</{tag}>',
         repl,
         xml,
         flags=re.DOTALL,
@@ -33,20 +46,13 @@ def replace_xml(xml: str, tag: str, content: str) -> str:
     )
 
 
-def duplicate_tag(xml: str, tag: str, new_tag: str) -> str:
-    lines = xml.split('\n')
-    for i, line in enumerate(lines):
-        if re.match(fr'<{tag}>(.*?)</{tag}>', line.strip()):
-            new_line = re.sub(fr'<{tag}>(.*?)</{tag}>', fr'<{new_tag}>\1</{new_tag}>', line)
-            lines.insert(i+1, new_line)
-    return '\n'.join(lines)
-
-
 async def translate(xml_text: str) -> str:
     if result := re.match(r'<!\[CDATA\[(.*?)\]\]>', xml_text):
-        translated_text = await translator.translate(result.group(1))
+        inner_text = result.group(1)
+        translated_text = await translator.translate(inner_text.replace('<br>', '\n'))
         return f'<![CDATA[{translated_text}]]>'
-    return await translator.translate(xml_text)
+    result = await translator.translate(xml_text.replace('<br>', '\n'))
+    return result.translate(XML_ESCAPE)
 
 
 async def process_title(title: str, original_title: str, xml: str) -> str:
@@ -60,9 +66,29 @@ async def process_title(title: str, original_title: str, xml: str) -> str:
 
 
 async def process_plot(plot: str, xml: str) -> str:
-    xml = duplicate_tag(xml, 'plot', 'originalplot')
+    new_xml = copy_tag(xml, 'plot', 'originalplot')
+    # skip this if failed to copy tag
+    if new_xml is None:
+        log.error('Plot translation skipped because failed to copy tag')
+        return xml
     translated_plot = await translate(plot)
-    return replace_xml(xml, 'plot', translated_plot)
+    return replace_xml(new_xml, 'plot', translated_plot)
+
+
+def copy_tag(xml: str, tag: str, new_tag: str) -> str | None:
+    pattern = rf'^(\s*)<{tag}>(.*?)</{tag}>'
+
+    # Check if the tag exists first
+    if not re.search(pattern, xml, flags=re.DOTALL | re.MULTILINE):
+        log.error('Failed to copy tag %s to %s', tag, new_tag)
+        return None
+
+    def repl(match: re.Match) -> str:
+        indent = match.group(1)
+        content = match.group(2)
+        return f'{indent}<{tag}>{content}</{tag}>\n{indent}<{new_tag}>{content}</{new_tag}>'
+
+    return re.sub(pattern, repl, xml, flags=re.DOTALL | re.MULTILINE, count=1)
 
 
 def get_process_list() -> dict[Path, dict[str, str]]:
@@ -102,12 +128,12 @@ async def process_one(nfo_path: Path, data: dict[str, str]) -> None:
     nfo_path.with_suffix('.nfo.tmp').rename(nfo_path)
 
 
-async def main() -> None:
+async def batch_process(batch_size: int = 10) -> None:
     process_list = get_process_list()
     log.info('%d items to translate', len(process_list))
     pbar = tqdm(total=len(process_list), desc='Processing')
 
-    semaphore = asyncio.Semaphore(10)
+    semaphore = asyncio.Semaphore(batch_size)
 
     async def sem_task(nfo_path: Path, data: dict[str, str]) -> None:
         async with semaphore:
@@ -119,5 +145,9 @@ async def main() -> None:
     pbar.close()
 
 
+def main() -> None:
+    asyncio.run(batch_process())
+
+
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()

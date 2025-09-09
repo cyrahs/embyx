@@ -32,7 +32,6 @@ class Translator(BaseModel):
     openai_api_key: str
     openai_base_url: str
     model_list: list[str]
-    prompt_file: Path
 
 
 class Freshrss(BaseModel):
