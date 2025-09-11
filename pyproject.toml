@@ -18,6 +18,7 @@ dependencies = [
     "tenacity>=9.1.2",
     "tqdm>=4.67.1",
     "typed-argument-parser>=1.10.1",
+    "tzlocal>=5.3.1",
 ]
 
 [tool.ruff]
