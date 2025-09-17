@@ -43,16 +43,14 @@ def rename(root: Path) -> None:
     if not root.is_dir():
         msg = f'{root} is not a directory'
         raise ValueError(msg)
-    avids: dict[str, list[Path]] = {}
+    avids: dict[str, set[Path]] = {}
     for video in root.iterdir():
         if not is_video(video):
             continue
         avid = remove_00(get_avid(video.name))
-        if avid not in avids:
-            avids[avid] = []
-        avids[avid].append(video)
-    for avid, videos in avids.items():
-        videos.sort(key=lambda x: x.name)
+        avids.setdefault(avid, set()).add(video)
+    for avid, videos_set in avids.items():
+        videos = sorted(videos_set, key=lambda x: x.name)
         for i, video in enumerate(videos):
             suffix = f'-cd{i + 1}{video.suffix}' if len(videos) > 1 else video.suffix
             new_name = f'{avid}{suffix}'
