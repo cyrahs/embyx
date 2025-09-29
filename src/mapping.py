@@ -29,7 +29,7 @@ def update(src_dir: Path, dst_dir: Path) -> None:
     for src in src_dir.glob('**/*.strm'):
         # Get relative path from source directory
         rel_path = src.relative_to(src_dir)
-        avid = get_avid(src.stem)
+        avid = get_avid(src.name)
         if not avid:
             log.warning('failed to get avid for %s, skipping', src.relative_to(src_dir))
             continue

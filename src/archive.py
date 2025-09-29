@@ -5,6 +5,7 @@ script that process videos and move to target directory
 
 import re
 import shutil
+import time
 from pathlib import Path
 
 from src.core import config, logger
@@ -40,6 +41,7 @@ def multi_part_video_check(videos: list[Path]) -> bool:
 
 
 def rename(root: Path) -> None:
+    renamed_any = False
     if not root.is_dir():
         msg = f'{root} is not a directory'
         raise ValueError(msg)
@@ -59,9 +61,14 @@ def rename(root: Path) -> None:
                 continue
             log.notice('%s\n -> %s', video.relative_to(root), new_name)
             video.rename(root / new_name)
+            renamed_any = True
+    if renamed_any:
+        log.info('Sleeping 5 seconds after renaming')
+        time.sleep(5)
 
 
 def flatten(root: Path) -> None:
+    flattened_any = False
     if not root.is_dir():
         msg = f'{root} is not a directory'
         raise ValueError(msg)
@@ -101,6 +108,10 @@ def flatten(root: Path) -> None:
                 raise FileExistsError(msg)
             v.rename(dst)
         shutil.rmtree(folder)
+        flattened_any = True
+    if flattened_any:
+        log.info('Sleeping 5 seconds after flattening')
+        time.sleep(5)
 
 def clear_dirname(root: Path) -> None:
     for folder in root.iterdir():
