@@ -8,8 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
-/log
 prompts/
 temp*
-config*.toml
 *.json
+.env
+data

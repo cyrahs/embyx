@@ -9,6 +9,7 @@ from typing import Any
 
 import colorlog
 from tqdm import tqdm
+from .config import config
 
 NOTICE = 25
 logging.addLevelName(NOTICE, 'NOTICE')
@@ -56,7 +57,7 @@ root.addHandler(console_handler)
 app_logger = logging.getLogger('embyx')
 
 
-log_dir = Path('./log')
+log_dir = config.log_dir
 log_dir.mkdir(exist_ok=True)
 timestamp = datetime.now().astimezone().strftime('%Y%m%d')
 file_handler = logging.FileHandler(log_dir / f'{timestamp}.log')

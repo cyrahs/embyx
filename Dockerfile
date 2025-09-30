@@ -1,26 +1,20 @@
-# Builder
-FROM python:3.12-slim-bookworm AS builder
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim AS builder
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
 
 WORKDIR /app
-
-# Bring in uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy manifests
 COPY pyproject.toml uv.lock ./
 
 # Create .venv
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --compile-bytecode --no-cache
 
 # Runner
-FROM python:3.12-slim-bookworm AS runner
+FROM python:3.13-slim-trixie AS runner
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PATH="/app/.venv/bin:${PATH}"
 
 WORKDIR /app
 
@@ -30,6 +24,8 @@ COPY --from=builder /app/.venv .venv
 COPY src/ src/
 COPY run.py ./
 
+# Compile application code to bytecode
+RUN python -m compileall src/ run.py
 
 # Default command runs your launcher, which invokes .venv/bin/python
-CMD [".venv/bin/python", "run.py"]
+CMD ["python", "run.py"]

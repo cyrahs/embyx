@@ -9,15 +9,13 @@ import nyaapy.torrent
 from pyquery import PyQuery
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from src.core import logger
+from src.core import config, logger
 from src.utils.avid import get_avid
 
 log = logger.get('magnet')
 
 # Create separate magnet log handler
-magnet_log_dir = Path('./log')
-magnet_log_dir.mkdir(exist_ok=True)
-magnet_log_file = magnet_log_dir / 'magnets.log'
+magnet_log_file = config.log_dir / 'magnets.log'
 
 magnet_logger = logging.getLogger('magnet_chosen')
 magnet_file_handler = logging.FileHandler(magnet_log_file)

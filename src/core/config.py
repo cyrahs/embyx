@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict, TomlConfigSettingsSource
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 
 
 class Avid(BaseModel):
@@ -61,6 +61,7 @@ class FillActor(BaseModel):
 
 
 class Config(BaseSettings):
+    log_dir: Path
     avid: Avid
     archive: Archive
     mapping: Mapping
@@ -70,11 +71,26 @@ class Config(BaseSettings):
     rss: Rss
     emby: Emby
     fill_actor: FillActor
-    model_config = SettingsConfigDict(toml_file='./config.toml')
+    model_config = SettingsConfigDict(
+        toml_file='./data/config.toml',
+        env_file='.env',
+        env_nested_delimiter='__',
+        case_sensitive=False,
+    )
 
     @classmethod
-    def settings_customise_sources(cls, settings_cls: type[BaseSettings], **_: Any) -> tuple[BaseSettings, ...]:
-        return (TomlConfigSettingsSource(settings_cls),)
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        **_: Any,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            env_settings,
+            dotenv_settings,
+            TomlConfigSettingsSource(settings_cls),
+        )
 
 
 config = Config()
