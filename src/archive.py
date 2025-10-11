@@ -67,7 +67,7 @@ def rename(root: Path) -> None:
         time.sleep(5)
 
 
-def flatten(root: Path) -> None:
+def flatten(root: Path) -> None:  # noqa: C901
     flattened_any = False
     if not root.is_dir():
         msg = f'{root} is not a directory'
