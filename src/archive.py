@@ -118,10 +118,19 @@ def clear_dirname(root: Path) -> None:
         if not folder.is_dir():
             continue
         if has_video_suffix(folder):
-            log.info('clearing dirname for %s -> %s', folder.name, folder.stem)
-            new_path = root / folder.stem
+            new_name = folder.stem + folder.suffix.replace('.', '-')
+            log.info('clearing dirname for %s -> %s', folder.name, new_name)
+            new_path = root / new_name
+            counter = 1
+            while new_path.exists():
+                new_name_with_counter = new_name + f'-{counter}'
+                log.info('%s exists, trying %s', new_name, new_name_with_counter)
+                new_path = root / new_name_with_counter
+                counter += 1
+                if counter > 5:
+                    break
             if new_path.exists():
-                log.warning('failed to clear dirname: %s exists, skipping', new_path)
+                log.warning('failed to clear dirname for %s, skipping', folder.name)
                 continue
             folder.rename(new_path)
 
