@@ -27,7 +27,9 @@ def find_exists_in_actor(avid: str) -> list[Path]:
     avid = avid.upper()
     brand = get_brand(avid)
     brand_path = cfg.actor_brand_path / brand
+    log.info('Checking %s', brand_path)
     if not brand_path.exists():
+        log.info('No such directory: %s', brand_path)
         return []
     avid_paths = list(brand_path.iterdir())
     return [p for p in avid_paths if re.match(avid + r'(?:-cd\d{1,2})?\..+', p.name)]
@@ -38,7 +40,9 @@ def find_exists_in_additional(avid: str) -> list[Path]:
     result = []
     for p in cfg.additional_brand_path:
         brand_path = p / brand
+        log.info('Checking %s', brand_path)
         if not brand_path.exists():
+            log.info('No such directory: %s', brand_path)
             continue
         avid_paths = list(brand_path.iterdir())
         result += [p for p in avid_paths if re.match(avid + r'(?:-cd\d{1,2})?\..+', p.name)]
@@ -62,8 +66,11 @@ async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912
             )
     non_exists: set[str] = set()
     for actor_id in actor_ids:
+        log.info('Scraping %s from javbus', actor_id)
         res = await web.javbus.scrape(actor_id)
         res = set(res)
+        log.info('Found %d videos', len(res))
+        log.info('Checking if videos exist in actor folder')
         for r in res:
             r_clean = match.group(1) if (match := re.match(r'(.+)_\d{4}-\d{2}-\d{2}', r)) else r
             if not find_exists_in_actor(r_clean):
@@ -73,6 +80,7 @@ async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912
         return
     # check additional
     avid_video: dict[str, list[Path]] = {}
+    log.info('Checking if videos exist in additional folder')
     for avid in non_exists:
         find = find_exists_in_additional(avid)
         if find:
