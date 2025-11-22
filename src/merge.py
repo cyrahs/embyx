@@ -4,20 +4,38 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from tap import Tap
+
 from src.core import config, logger
 from src.utils import get_avid
 
 log = logger.get('merge')
 
-search_dir = config.mapping.src_dir / 'type/vr'
 
-def get_cds(search_dir: Path) -> dict[str, list[Path]]:
+class Args(Tap):
+    search_dir: Path
+    filter: str
+
+    def configure(self) -> None:
+        self.add_argument('search_dir', type=Path, default='type/vr', help='search directory')
+        self.add_argument('-f', '--filter', type=str, default='', help='filter to merge')
+
+
+args = Args().parse_args()
+search_dir = config.mapping.src_dir / args.search_dir
+if not search_dir.is_dir():
+    log.error('%s is not a directory', args.search_dir)
+    exit(1)
+
+def get_cds(search_dir: Path, filter: str) -> dict[str, list[Path]]:
     cds: list[Path] = []
     for root, _, files in search_dir.walk():
         cds += [root / f for f in files if re.search(r'-cd\d+\.strm', f)]
-    avid_cds = {}
+    avid_cds: dict[str, list[Path]] = {}
     for cd in cds:
         avid = get_avid(cd.name)
+        if filter and not re.search(filter, avid):
+            continue
         if avid not in avid_cds:
             avid_cds[avid] = []
         avid_cds[avid].append(cd)
@@ -41,6 +59,7 @@ def merge(cds: list[Path], dst: Path) -> bool:
         txt_path.write_text('\n'.join([f'file {cd}' for cd in cds]))
         cmd = [
             'ffmpeg',
+            '-hide_banner',
             '-f', 'concat',
             '-safe', '0',
             '-i', str(txt_path),
@@ -61,7 +80,10 @@ def merge(cds: list[Path], dst: Path) -> bool:
         return True
 
 def main() -> None:
-    avid_cds = get_cds(search_dir)
+    avid_cds = get_cds(search_dir, args.filter)
+    log.notice('find %d avids to merge', len(avid_cds))
+    for avid, cds in avid_cds.items():
+        log.notice('avid: %s, cds: %s', avid, ', '.join([cd.name for cd in cds]))
     for avid, cds in avid_cds.items():
         log.notice('start merging %s', avid)
         real_cds = [Path(cd.read_text()) for cd in cds]
