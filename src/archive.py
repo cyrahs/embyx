@@ -67,7 +67,7 @@ def rename(root: Path) -> None:
         time.sleep(5)
 
 
-def flatten(root: Path) -> None:  # noqa: C901
+def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901
     flattened_any = False
     if not root.is_dir():
         msg = f'{root} is not a directory'
@@ -78,7 +78,20 @@ def flatten(root: Path) -> None:  # noqa: C901
             continue
         videos = [f for f in folder.iterdir() if is_video(f) and f.stat().st_size > cfg.min_size * 1024 * 1024]
         if len(videos) == 0:
-            log.info('%s has no video files larger than %dMB, skipping', folder.name, cfg.min_size)
+            folder_avid = get_avid(folder.name)
+            log.info('%s has no video files larger than %dMB', folder.name, cfg.min_size)
+            if not folder_avid:
+                continue
+            folder_avid = remove_00(folder_avid)
+            folder_avid_dst_dir = find_dst_dir(folder_avid, dst_dir)
+            if not folder_avid_dst_dir.exists():
+                continue
+            for f in folder_avid_dst_dir.iterdir():
+                if not is_video(f) or not f.name.startswith(folder_avid):
+                    continue
+                log.warning('%s has no video and %s exists (%s), deleting', folder.name, folder_avid, f)
+                shutil.rmtree(folder)
+                break
             continue
         # check avid
         avids = [get_avid(t.name) for t in videos]
@@ -133,22 +146,25 @@ def clear_dirname(root: Path) -> None:
                 log.warning('failed to clear dirname for %s, skipping', folder.name)
                 continue
             folder.rename(new_path)
-
-def find_dst(video: Path, dst_dir: Path) -> Path | None:
-    if not is_video(video):
-        return None
-    if not (avid := get_avid(video.name)):
-        log.warning('failed to get avid for %s, skipping find_dst', video.relative_to(cfg.src_dir))
-        return None
+            
+def find_dst_dir(avid: str, dst_dir: Path) -> Path:
     brand = get_brand(avid)
     if not (brand := get_brand(avid)):
-        log.warning('failed to get brand for %s, skipping find_dst', video.relative_to(cfg.src_dir))
+        log.warning('failed to get brand for %s, skipping find_dst', avid)
         return None
     # check if in brand_mapping
     for brand_dst, brand_avids in cfg.brand_mapping.items():
         if brand in brand_avids:
-            return cfg.dst_dir / brand_dst / brand / video.name
-    return dst_dir / brand / video.name
+            return cfg.dst_dir / brand_dst / brand
+    return dst_dir / brand
+
+def find_video_dst(video: Path, dst_dir: Path) -> Path | None:
+    if not is_video(video):
+        return None
+    if not (avid := get_avid(video.name)):
+        log.warning('failed to get avid for %s, skipping find_video_dst', video.relative_to(cfg.src_dir))
+        return None
+    return find_dst_dir(avid, dst_dir) / video.name
 
 
 def archive(src_dir: Path, dst_dir: Path) -> None:
@@ -160,7 +176,7 @@ def archive(src_dir: Path, dst_dir: Path) -> None:
         raise ValueError(msg)
 
     for video in src_dir.iterdir():
-        if not (dst := find_dst(video, dst_dir)):
+        if not (dst := find_video_dst(video, dst_dir)):
             continue
         if not dst.parent.exists():
             dst.parent.mkdir(parents=True)
@@ -177,7 +193,7 @@ def main() -> None:
         dst_path = cfg.dst_dir / dst
         log.info('processing %s -> %s', src_path, dst_path)
         clear_dirname(src_path)
-        flatten(src_path)
+        flatten(src_path, dst_path)
         rename(src_path)
         archive(src_path, dst_path)
 
