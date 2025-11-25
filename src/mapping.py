@@ -73,11 +73,7 @@ def delete_empty_dirs(dst_dir: Path) -> None:
 
     # Sort in reverse order to delete deepest directories first
     empty_dirs.sort(reverse=True)
-    log.notice('directories to delete, continue?(y/n):\n%s', '\n'.join([str(d.relative_to(dst_dir)) for d in empty_dirs]))
-    continue_deletion = input() == 'y'
-    if not continue_deletion:
-        log.info('skipped deletion of %d directories', len(empty_dirs))
-        return
+    log.notice('deleting directories:\n%s', '\n'.join([str(d.relative_to(dst_dir)) for d in empty_dirs]))
 
     # process deletion
     for empty_dir in empty_dirs:
