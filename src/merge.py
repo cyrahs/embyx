@@ -52,10 +52,11 @@ def merge(cds: list[Path], dst: Path) -> bool:
     if dst.exists():
         log.warning('%s already exists, skip', dst)
         return False
-    with tempfile.TemporaryDirectory(prefix='embyx-merge-') as tmp_dir:
-        tmp_dir_path = Path(tmp_dir)
-        txt_path = tmp_dir_path / 'merge.txt'
-        tmp_output_path = tmp_dir_path / 'output.mp4'
+    tmp_dir_ctx = tempfile.TemporaryDirectory(prefix='embyx-merge-', dir='./data')
+    tmp_dir_path = Path(tmp_dir_ctx.name)
+    txt_path = tmp_dir_path / 'merge.txt'
+    tmp_output_path = tmp_dir_path / 'output.mp4'
+    try:
         txt_path.write_text('\n'.join([f'file {cd}' for cd in cds]))
         cmd = [
             'ffmpeg',
@@ -66,18 +67,22 @@ def merge(cds: list[Path], dst: Path) -> bool:
             '-c', 'copy',
             str(tmp_output_path),
         ]
-        try:
-            result = subprocess.run(cmd, check=False)  # noqa: S603
-            if result.returncode != 0:
-                log.error('failed to merge %s: return code %d', cds, result.returncode)
-                return False
-        except subprocess.CalledProcessError:
-            log.exception('failed to merge %s', cds)
+        result = subprocess.run(cmd, check=False)  # noqa: S603
+        if result.returncode != 0:
+            log.error('failed to merge %s: return code %d', cds, result.returncode)
             return False
         log.info('moving %s to %s', tmp_output_path, dst)
         shutil.move(tmp_output_path, dst)
         log.info('done')
         return True
+    except subprocess.CalledProcessError:
+        log.exception('failed to merge %s', cds)
+        return False
+    except KeyboardInterrupt:
+        log.warning('keyboard interrupt while merging %s, removing %s', cds, tmp_dir_path)
+        raise
+    finally:
+        tmp_dir_ctx.cleanup()
 
 def main() -> None:
     avid_cds = get_cds(search_dir, args.filter)
