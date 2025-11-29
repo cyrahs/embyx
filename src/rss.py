@@ -140,7 +140,5 @@ async def get_magnet(avid: str, items: list[dict], avid_magnet: dict[str, str]) 
             log.exception('Failed to mark %d items as read', len(item_ids))
 
 
-
-
 if __name__ == '__main__':
     main()

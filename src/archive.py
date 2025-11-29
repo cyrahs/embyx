@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from src.core import config, logger
-from src.utils import get_avid, get_brand, has_video_suffix, is_video
+from src.utils import clouddrive, get_avid, get_brand, has_video_suffix, is_video
 
 log = logger.get('archive')
 cfg = config.archive
@@ -146,7 +146,7 @@ def clear_dirname(root: Path) -> None:
                 log.warning('failed to clear dirname for %s, skipping', folder.name)
                 continue
             folder.rename(new_path)
-            
+
 def find_dst_dir(avid: str, dst_dir: Path) -> Path:
     brand = get_brand(avid)
     if not (brand := get_brand(avid)):
@@ -188,6 +188,8 @@ def archive(src_dir: Path, dst_dir: Path) -> None:
 
 
 def main() -> None:
+    # refresh task dir
+    clouddrive.get_sub_files(config.clouddrive.task_dir_path, force_refresh=True)
     for src, dst in cfg.mapping.items():
         src_path = cfg.src_dir / src
         dst_path = cfg.dst_dir / dst

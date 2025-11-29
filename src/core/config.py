@@ -59,6 +59,11 @@ class FillActor(BaseModel):
     additional_brand_path: list[Path]
     move_in_path: Path
 
+class CloudDrive(BaseModel):
+    address: str
+    api_token: str
+    task_dir_path: Path
+
 
 class Config(BaseSettings):
     log_dir: Path
@@ -67,6 +72,7 @@ class Config(BaseSettings):
     mapping: Mapping
     translate: Translate
     translator: Translator
+    clouddrive: CloudDrive
     freshrss: Freshrss
     rss: Rss
     emby: Emby
