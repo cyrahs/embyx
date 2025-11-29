@@ -62,7 +62,7 @@ class FillActor(BaseModel):
 class CloudDrive(BaseModel):
     address: str
     api_token: str
-    task_dir_path: Path
+    task_dir_path: str
 
 
 class Config(BaseSettings):
