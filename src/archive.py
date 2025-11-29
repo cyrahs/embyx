@@ -189,6 +189,7 @@ def archive(src_dir: Path, dst_dir: Path) -> None:
 
 def main() -> None:
     # refresh task dir
+    log.info('Refreshing task directory')
     clouddrive.get_sub_files(config.clouddrive.task_dir_path, force_refresh=True)
     for src, dst in cfg.mapping.items():
         src_path = cfg.src_dir / src
