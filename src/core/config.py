@@ -40,14 +40,6 @@ class Freshrss(BaseModel):
     proxy: str
 
 
-class Rss(BaseModel):
-    rsshub_url: str
-    cf_access_client_id: str
-    cf_access_client_secret: str
-    open115_url: str
-    task_dir_id: str
-
-
 class Emby(BaseModel):
     url: str
     api_key: str
@@ -74,7 +66,6 @@ class Config(BaseSettings):
     translator: Translator
     clouddrive: CloudDrive
     freshrss: Freshrss
-    rss: Rss
     emby: Emby
     fill_actor: FillActor
     model_config = SettingsConfigDict(

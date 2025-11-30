@@ -1,14 +1,13 @@
 import asyncio
 
 import httpx
+from grpc import RpcError
 from tap import Tap
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from tqdm.asyncio import tqdm_asyncio
 
 from src.core import config, logger
-from src.utils import freshrss, get_avid, magnet
-
-cfg = config.rss
+from src.utils import clouddrive, freshrss, get_avid, magnet
 
 
 class Args(Tap):
@@ -69,6 +68,7 @@ def main() -> None:
     reraise=True,
 )
 def add_magnets(magnets: list[str]) -> dict[str, list[str]]:
+    results = []
     for link in magnets:
         if not isinstance(link, str):
             msg = f'magnet link must be a string, but got {type(link)}'
@@ -76,15 +76,22 @@ def add_magnets(magnets: list[str]) -> dict[str, list[str]]:
         if not link.lower().startswith('magnet:'):
             msg = f'magnet link must start with "magnet:", but got {link}'
             raise ValueError(msg)
-
-    url = f'{cfg.open115_url}/magnet/add'
-    payload = {
-        'magnets': magnets,
-        'dir_id': cfg.task_dir_id,
-    }
-    res = httpx.post(url, json=payload, timeout=10)
-    res.raise_for_status()
-    return res.json()
+        try:
+            res = clouddrive.add_offline_file(link, config.clouddrive.task_dir_path)
+            if res.success:
+                log.info('Added magnet to 115: %s', link)
+                results.append({'type': 'success', 'link': link})
+            else:
+                log.error('Failed to add magnet to 115: %s: %s', link, res)
+                results.append({'type': 'failed', 'link': link, 'response': res})
+        except RpcError as e:
+            if '任务已存在' in e.details():
+                log.warning('Duplicate magnet for %s', link)
+                results.append({'type': 'duplicate', 'link': link})
+            else:
+                log.exception('Failed to add magnet to 115: %s: %s', link, e.details())
+                results.append({'type': 'failed', 'link': link, 'response': e.details()})
+    return results
 
 
 def add_magnets_and_read(avid_magnet: dict[str, str], avid_item: dict[str, list[dict]]) -> None:

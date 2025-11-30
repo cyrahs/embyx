@@ -1,10 +1,8 @@
 import asyncio
-import contextlib
 import re
 from collections.abc import Coroutine
 from pathlib import Path
 
-import httpx
 from tap import Tap
 from tqdm.asyncio import tqdm_asyncio
 
@@ -51,19 +49,6 @@ def find_exists_in_additional(avid: str) -> list[Path]:
 async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912
     if isinstance(actor_ids, str):
         actor_ids = [actor_ids]
-    log.info('Get rsshub to scrape')
-    # get rsshub to scrape
-    httpx_client = httpx.AsyncClient()
-    for actor_id in actor_ids:
-        with contextlib.suppress(httpx.TimeoutException):
-            await httpx_client.get(
-                f'{config.rss.rsshub_url}/javbus/star/{actor_id}',
-                timeout=10,
-                headers={
-                    'CF-Access-Client-Id': config.rss.cf_access_client_id,
-                    'CF-Access-Client-Secret': config.rss.cf_access_client_secret,
-                },
-            )
     non_exists: set[str] = set()
     for actor_id in actor_ids:
         log.info('Scraping %s from javbus', actor_id)
