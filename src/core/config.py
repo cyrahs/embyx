@@ -69,7 +69,7 @@ class Config(BaseSettings):
     emby: Emby
     fill_actor: FillActor
     model_config = SettingsConfigDict(
-        toml_file='./data/config.toml',
+        toml_file='./config.toml',
         env_file='.env',
         env_nested_delimiter='__',
         case_sensitive=False,
