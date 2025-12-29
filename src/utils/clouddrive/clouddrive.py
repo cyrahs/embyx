@@ -1,3 +1,5 @@
+import errno
+
 import grpc
 from google.protobuf import empty_pb2
 
@@ -50,8 +52,19 @@ class CloudDriveClient:
         metadata = self._create_authorized_metadata()
         files = []
 
-        for response in self.stub.GetSubFiles(request, metadata=metadata):
-            files.extend(response.subFiles)
+        try:
+            for response in self.stub.GetSubFiles(request, metadata=metadata):
+                files.extend(response.subFiles)
+        except grpc.RpcError as e:
+            if getattr(e, 'code', None) and e.code() == grpc.StatusCode.NOT_FOUND:
+                details = getattr(e, 'details', lambda: None)()
+                msg = details or f'CloudDrive path not found: "{path}"'
+                raise FileNotFoundError(errno.ENOENT, msg, path) from e
+            if getattr(e, 'code', None) and e.code() == grpc.StatusCode.INVALID_ARGUMENT:
+                details = getattr(e, 'details', lambda: None)()
+                if details and "can't open a file as directory" in details:
+                    raise NotADirectoryError(errno.ENOTDIR, details, path) from e
+            raise
 
         return files
 
@@ -136,10 +149,42 @@ class CloudDriveClient:
         request = clouddrive_pb2.AddOfflineFileRequest(
             urls=urls,
             toFolder=dst_dir,
-            checkFolderAfterSecs=3,
+            checkFolderAfterSecs=0,
         )
         metadata = self._create_authorized_metadata()
         return self.stub.AddOfflineFiles(request, metadata=metadata)
+
+    def list_finished_offline_files_by_path(self, path: str) -> clouddrive_pb2.OfflineFileListResult:
+        """列出指定路径下的离线文件
+        Args:
+            path: 路径
+        Returns:
+            OfflineFileListResult: 仅包含已完成(OFFLINE_FINISHED)的 OfflineFile 列表
+        """
+        request = clouddrive_pb2.FileRequest(path=path)
+        metadata = self._create_authorized_metadata()
+        result = self.stub.ListOfflineFilesByPath(request, metadata=metadata)
+
+        finished = [f for f in result.offlineFiles if f.status == clouddrive_pb2.OfflineFileStatus.OFFLINE_FINISHED]
+        return clouddrive_pb2.OfflineFileListResult(
+            offlineFiles=finished,
+            status=result.status,
+        )
+
+    def clear_finished_offline_files(self, path: str) -> None:
+        """清除已完成下载的离线文件
+        Returns:
+            None
+        """
+        request = clouddrive_pb2.ClearOfflineFileRequest(
+            filter=clouddrive_pb2.ClearOfflineFileRequest.Filter.Finished,
+            cloudName=config.clouddrive.cloud_name,
+            cloudAccountId=config.clouddrive.cloud_account_id,
+            deleteFiles=False,
+            path=path,
+        )
+        metadata = self._create_authorized_metadata()
+        self.stub.ClearOfflineFiles(request, metadata=metadata)
 
 
 clouddrive = CloudDriveClient()

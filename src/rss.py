@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import httpx
 from grpc import RpcError
@@ -22,45 +23,6 @@ args = Args().parse_args()
 log = logger.get('rss')
 
 
-def main() -> None:
-    label = 'Rank' if args.rank else 'Actor'
-    items = freshrss.get_items(label)
-    log.info('Find %d items in %s', len(items), label)
-    if not items:
-        return
-    avid_item = {}
-    for item in items:
-        avid = get_avid(item['title'])
-        if not avid:
-            log.warning('Failed to get avid for %s', item['title'])
-            continue
-        if avid not in avid_item:
-            avid_item[avid] = []
-        avid_item[avid].append(item)
-    log.info('Find %d unique avids in %s', len(avid_item), label)
-    # get magnets
-    avid_magnet = {}
-    tasks = [get_magnet(k, v, avid_magnet) for k, v in avid_item.items()]
-    try:
-        asyncio.run(tqdm_asyncio.gather(*tasks))
-    except (Exception, KeyboardInterrupt):
-        log.exception('Failed to get magnets')
-    finally:
-        magnet_lines = list(avid_magnet.values())
-        log_lines = [f'found {len(magnet_lines)} magnets:']
-        log_lines.extend(magnet_lines)
-        log.info('\n'.join(log_lines))
-        # store to txt
-        failed_avid = [i for i in avid_item if i not in avid_magnet]
-        if failed_avid:
-            log_lines = [f'Failed to get magnets for {len(failed_avid)} items:']
-            for i in failed_avid:
-                log_lines.append(f'{i}')
-            log.warning(' '.join(log_lines))
-    # add magnets to 115
-    add_magnets_and_read(avid_magnet, avid_item)
-
-
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -71,10 +33,10 @@ def add_magnets(magnets: list[str]) -> dict[str, list[str]]:
     results = []
     for link in magnets:
         if not isinstance(link, str):
-            msg = f'magnet link must be a string, but got {type(link)}'
+            msg = f'Magnet link must be a string, but got {type(link)}'
             raise TypeError(msg)
         if not link.lower().startswith('magnet:'):
-            msg = f'magnet link must start with "magnet:", but got {link}'
+            msg = f'Magnet link must start with "magnet:", but got {link}'
             raise ValueError(msg)
         try:
             res = clouddrive.add_offline_file(link, config.clouddrive.task_dir_path)
@@ -120,6 +82,9 @@ def add_magnets_and_read(avid_magnet: dict[str, str], avid_item: dict[str, list[
                 freshrss.read_items(mark_as_read_item_id)
             except Exception:
                 log.exception('Failed to mark %d items as read', len(mark_as_read_item_id))
+    if len(magnets) > 0:
+        log.info('Wait 10 seconds for magnets ')
+        time.sleep(10)
 
 
 async def get_magnet(avid: str, items: list[dict], avid_magnet: dict[str, str]) -> None:
@@ -145,6 +110,71 @@ async def get_magnet(avid: str, items: list[dict], avid_magnet: dict[str, str]) 
             freshrss.read_items(item_ids)
         except Exception:
             log.exception('Failed to mark %d items as read', len(item_ids))
+
+
+def refresh_finished_magnets() -> None:
+    log.info('Start to refresh finished magnets')
+    clouddrive.get_sub_files(config.clouddrive.task_dir_path, force_refresh=True)
+    log.info('List finished magnets')
+    targets = clouddrive.list_finished_offline_files_by_path(config.clouddrive.task_dir_path).offlineFiles
+    all_success = True
+    for target in targets:
+        try:
+            log.info('Refreshing %s', target.name)
+            clouddrive.get_sub_files(config.clouddrive.task_dir_path + '/' + target.name, force_refresh=True)
+        except FileNotFoundError:
+            log.warning('Path not found, skip')
+            continue
+        except NotADirectoryError:
+            log.warning('Not a directory, skip')
+            continue
+        except Exception:
+            log.exception('Failed to refresh %s', target.name)
+            all_success = False
+            continue
+    if all_success:
+        log.info('Clear finished magnet records')
+        clouddrive.clear_finished_offline_files(config.clouddrive.task_dir_path)
+
+
+def main() -> None:
+    label = 'Rank' if args.rank else 'Actor'
+    items = freshrss.get_items(label)
+    log.info('Find %d items in %s', len(items), label)
+    if not items:
+        return
+    avid_item = {}
+    for item in items:
+        avid = get_avid(item['title'])
+        if not avid:
+            log.warning('Failed to get avid for %s', item['title'])
+            continue
+        if avid not in avid_item:
+            avid_item[avid] = []
+        avid_item[avid].append(item)
+    log.info('Find %d unique avids in %s', len(avid_item), label)
+    # get magnets
+    avid_magnet = {}
+    tasks = [get_magnet(k, v, avid_magnet) for k, v in avid_item.items()]
+    try:
+        asyncio.run(tqdm_asyncio.gather(*tasks))
+    except (Exception, KeyboardInterrupt):
+        log.exception('Failed to get magnets')
+    finally:
+        magnet_lines = list(avid_magnet.values())
+        log_lines = [f'Found {len(magnet_lines)} magnets']
+        log_lines.extend(magnet_lines)
+        log.info('\n'.join(log_lines))
+        # store to txt
+        failed_avid = [i for i in avid_item if i not in avid_magnet]
+        if failed_avid:
+            log_lines = [f'Failed to get magnets for {len(failed_avid)} items:']
+            for i in failed_avid:
+                log_lines.append(f'{i}')
+            log.warning(' '.join(log_lines))
+    # add magnets to 115
+    add_magnets_and_read(avid_magnet, avid_item)
+    refresh_finished_magnets()
 
 
 if __name__ == '__main__':

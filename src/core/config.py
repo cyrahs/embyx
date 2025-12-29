@@ -55,6 +55,8 @@ class CloudDrive(BaseModel):
     address: str
     api_token: str
     task_dir_path: str
+    cloud_name: str
+    cloud_account_id: str
 
 
 class Config(BaseSettings):
