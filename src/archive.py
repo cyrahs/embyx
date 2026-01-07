@@ -40,6 +40,15 @@ def multi_part_video_check(videos: list[Path]) -> bool:
     return len(non_index_parts) == 1
 
 
+def is_4k_video(video: Path) -> bool:
+    stem = video.stem.lower()
+    if not stem.endswith('4k'):
+        return False
+    if stem == '4k':
+        return False
+    return not stem[-3].isalnum()
+
+
 def rename(root: Path) -> None:
     renamed_any = False
     if not root.is_dir():
@@ -67,7 +76,7 @@ def rename(root: Path) -> None:
         time.sleep(5)
 
 
-def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901
+def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901, PLR0912, PLR0915
     flattened_any = False
     if not root.is_dir():
         msg = f'{root} is not a directory'
@@ -100,11 +109,23 @@ def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901
                 'multiple avid result: %s found in %s in %s, skipping', ', '.join(avids), folder.name, ', '.join([t.name for t in videos]),
             )
             continue
+        avid = avids[0]
         # check multiple videos naming
         if len(videos) > 1 and not multi_part_video_check(videos):
-            log.warning('multiple videos found, but seems not multi-part video, skipping %s', folder.name)
-            continue
-        avid = avids[0]
+            # check 4k variant
+            four_k = [v for v in videos if is_4k_video(v)]
+            if len(four_k) == 1:
+                kept = four_k[0]
+                kept_avid = get_avid(kept.name)
+                if kept_avid != avid:
+                    log.warning('4k video avid mismatch in %s, skipping', folder.name)
+                    continue
+                dropped = [v.name for v in videos if v != kept]
+                log.info('4k variant found in %s, keeping %s and dropping %s', folder.name, kept.name, ', '.join(dropped))
+                videos = [kept]
+            else:
+                log.warning('multiple videos found, but seems not multi-part video, skipping %s', folder.name)
+                continue
         if not avid:
             log.warning('failed to get avid for %s, skipping folder', ', '.join([t.name for t in videos]))
             continue
