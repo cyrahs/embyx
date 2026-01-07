@@ -1,5 +1,3 @@
-import time
-
 import archive
 import mapping
 import rss
