@@ -8,7 +8,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from tqdm.asyncio import tqdm_asyncio
 
 from src.core import config, logger
-from src.utils import clouddrive, freshrss, get_avid, magnet
+from src.utils import clouddrive, freshrss, get_avid, magnet, web
 
 
 class Args(Tap):
@@ -60,8 +60,8 @@ def add_magnets_and_read(avid_magnet: dict[str, str], avid_item: dict[str, list[
     magnets = list(avid_magnet.values())
     avids = list(avid_magnet.keys())
     for i in range(0, len(magnets), 20):
-        magnets_batch = magnets[i:i+20]
-        avid_batch = avids[i:i+20]
+        magnets_batch = magnets[i : i + 20]
+        avid_batch = avids[i : i + 20]
         try:
             results = add_magnets(magnets_batch)
         except Exception:
@@ -99,6 +99,16 @@ async def get_magnet(avid: str, items: list[dict], avid_magnet: dict[str, str]) 
     if link:
         avid_magnet[avid] = link
         return
+    # get from javbus
+    try:
+        magnets = await web.javbus.get_magnets(avid)
+        if magnets:
+            # select the largest magnet
+            best = max(magnets, key=lambda x: x['size_int'])
+            avid_magnet[avid] = best['magnet']
+            return
+    except Exception:
+        log.exception('Failed to get magnet from javbus for %s', avid)
     # leave one item unread when failed to get magnet
     if len(items) == 1:
         log.warning('Failed to get magnet for %s', items[0]['title'])
