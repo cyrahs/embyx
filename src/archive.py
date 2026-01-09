@@ -14,6 +14,9 @@ from src.utils import clouddrive, get_avid, get_brand, has_video_suffix, is_vide
 log = logger.get('archive')
 cfg = config.archive
 
+MAX_RENAME_ATTEMPTS = 5
+
+
 def remove_00(avid: str) -> str:
     match = re.match(r'[A-Z0-9]+-00\d{3,4}', avid)
     if match:
@@ -106,7 +109,10 @@ def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901, PLR0912, PLR0915
         avids = [get_avid(t.name) for t in videos]
         if len(set(avids)) != 1:
             log.warning(
-                'multiple avid result: %s found in %s in %s, skipping', ', '.join(avids), folder.name, ', '.join([t.name for t in videos]),
+                'multiple avid result: %s found in %s in %s, skipping',
+                ', '.join(avids),
+                folder.name,
+                ', '.join([t.name for t in videos]),
             )
             continue
         avid = avids[0]
@@ -147,6 +153,7 @@ def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901, PLR0912, PLR0915
         log.info('Sleeping 5 seconds after flattening')
         time.sleep(5)
 
+
 def clear_dirname(root: Path) -> None:
     for folder in root.iterdir():
         if not folder.is_dir():
@@ -161,12 +168,13 @@ def clear_dirname(root: Path) -> None:
                 log.info('%s exists, trying %s', new_name, new_name_with_counter)
                 new_path = root / new_name_with_counter
                 counter += 1
-                if counter > 5:
+                if counter > MAX_RENAME_ATTEMPTS:
                     break
             if new_path.exists():
                 log.warning('failed to clear dirname for %s, skipping', folder.name)
                 continue
             folder.rename(new_path)
+
 
 def find_dst_dir(avid: str, dst_dir: Path) -> Path:
     brand = get_brand(avid)
@@ -178,6 +186,7 @@ def find_dst_dir(avid: str, dst_dir: Path) -> Path:
         if brand in brand_avids:
             return cfg.dst_dir / brand_dst / brand
     return dst_dir / brand
+
 
 def find_video_dst(video: Path, dst_dir: Path) -> Path | None:
     if not is_video(video):
@@ -220,6 +229,7 @@ def main() -> None:
         flatten(src_path, dst_path)
         rename(src_path)
         archive(src_path, dst_path)
+
 
 if __name__ == '__main__':
     main()
