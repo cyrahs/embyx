@@ -25,6 +25,7 @@ class Item(BaseModel):
     BackdropImageTags: list[str]
     MediaType: str
 
+
 cfg = config.emby
 headers = {'X-Emby-Token': cfg.api_key}
 client = httpx.AsyncClient(headers=headers)
@@ -136,6 +137,22 @@ async def all_playlist_dedup() -> None:
         await playlist_dedup(item['Name'])
 
 
+async def collection_list(collection: str) -> list[dict]:
+    name_id = {i['Name']: i['Id'] for i in await get_items('BoxSet')}
+    if collection not in name_id:
+        msg = f'Collection not found: {collection}'
+        raise ValueError(msg)
+    url = f'{cfg.url}/Items'
+    params = {
+        'ParentId': name_id[collection],
+        'UserId': cfg.user_id,
+        'Fields': 'DateCreated',
+    }
+    res = await client.get(url, params=params)
+    res.raise_for_status()
+    return res.json()['Items']
+
+
 async def collection_add(collection: str, item_id_list: list[str]) -> None:
     name_id = {i['Name']: i['Id'] for i in await get_items('BoxSet')}
     url = f'{cfg.url}/Collections/{name_id[collection]}/Items'
@@ -144,6 +161,7 @@ async def collection_add(collection: str, item_id_list: list[str]) -> None:
     }
     res = await client.post(url, json=data)
     res.raise_for_status()
+
 
 async def get_id_by_avid(avid: str) -> str | None:
     if not avid_id:
