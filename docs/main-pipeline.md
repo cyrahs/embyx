@@ -1,7 +1,7 @@
 # Main pipeline overview
 
 This repo's automation uses a combined monitor:
-- `src/monitor.py` runs RSS + archive every 30 minutes, and runs a full STRM mapping rebuild once at startup then watches for `.strm` changes.
+- `src/monitor.py` runs RSS + archive every 30 minutes, runs a full STRM mapping rebuild once at startup, applies incremental `.strm` updates on changes, and runs a full rebuild every 24 hours as a safety net.
 
 `src/main.py` still runs a single pass of RSS + archive + mapping for manual runs. Each component is a standalone module with its own config section in `src/core/config.py`.
 
@@ -79,5 +79,5 @@ Key config inputs:
 
 ## Entry points
 
-- `src/monitor.py`: `rss.main()` + `archive.main()` every 30 minutes, and `mapping.main()` once at startup then on `.strm` changes.
+- `src/monitor.py`: `rss.main()` + `archive.main()` every 30 minutes, `mapping.main()` once at startup, incremental mapping on `.strm` changes, and a full mapping sync every 24 hours.
 - `src/main.py`: one-shot run in order (`rss.main()`, `archive.main()`, `mapping.main()`).

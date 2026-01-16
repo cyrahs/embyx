@@ -26,6 +26,80 @@ def reset_counter() -> None:
     counter = Counter()
 
 
+def map_strm_path(src: Path, src_dir: Path, dst_dir: Path) -> Path | None:
+    if src.suffix.lower() != '.strm':
+        return None
+    try:
+        rel_path = src.resolve().relative_to(src_dir.resolve())
+    except ValueError:
+        return None
+    avid = get_avid(src.name)
+    if not avid:
+        log.warning('failed to get avid for %s, skipping', src)
+        return None
+    return dst_dir / rel_path.parent / avid / src.name
+
+
+def update_one(src: Path, src_dir: Path, dst_dir: Path) -> None:
+    dst = map_strm_path(src, src_dir, dst_dir)
+    if not dst:
+        return
+    if not src.exists():
+        log.warning('source file missing, skipping %s', src)
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists() and src.stat().st_mtime <= dst.stat().st_mtime:
+        counter.files_skipped += 1
+        try:
+            rel_src = src.relative_to(src_dir)
+        except ValueError:
+            rel_src = src
+        log.debug('skipping %s (unchanged)', rel_src)
+        return
+    shutil.copy2(src, dst)
+    counter.files_updated += 1
+    try:
+        rel_src = src.relative_to(src_dir)
+    except ValueError:
+        rel_src = src
+    try:
+        rel_dst = dst.relative_to(dst_dir)
+    except ValueError:
+        rel_dst = dst
+    log.info('updated %s -> %s', rel_src, rel_dst)
+
+
+def delete_empty_dirs_for_path(path: Path, dst_dir: Path) -> None:
+    if not dst_dir.exists():
+        return
+    current = path
+    while current != dst_dir and dst_dir in current.parents:
+        try:
+            if any(current.iterdir()):
+                break
+        except FileNotFoundError:
+            current = current.parent
+            continue
+        current.rmdir()
+        counter.dirs_deleted += 1
+        log.info('deleted empty directory: %s', current.relative_to(dst_dir))
+        current = current.parent
+
+
+def delete_one(src: Path, src_dir: Path, dst_dir: Path) -> None:
+    dst = map_strm_path(src, src_dir, dst_dir)
+    if not dst or not dst.exists():
+        return
+    dst.unlink()
+    counter.files_deleted += 1
+    try:
+        rel_dst = dst.relative_to(dst_dir)
+    except ValueError:
+        rel_dst = dst
+    log.info('deleted %s', rel_dst)
+    delete_empty_dirs_for_path(dst.parent, dst_dir)
+
+
 def update(src_dir: Path, dst_dir: Path) -> None:
     """
     Map .strm files from src_dir with structure xx/yy/zz.strm
