@@ -5,33 +5,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-from tap import Tap
-
 from src.core import config, logger
 from src.utils import get_avid
 
 log = logger.get('merge')
-
-
-class Args(Tap):
-    search_dir: Path
-    dst_dir: Path
-    filter: str
-
-    def configure(self) -> None:
-        self.add_argument('search_dir', type=Path, default='type/vr', help='search directory')
-        self.add_argument('dst_dir', type=Path, help='destination directory')
-        self.add_argument('-f', '--filter', type=str, default='', help='filter to merge')
-
-
-args = Args().parse_args()
-search_dir = config.mapping.src_dir / args.search_dir
-if not search_dir.is_dir():
-    log.error('%s is not a directory', args.search_dir)
-    sys.exit(1)
-if not args.dst_dir.exists():
-    log.info('creating %s', args.dst_dir)
-    args.dst_dir.mkdir(parents=True)
 
 def get_cds(search_dir: Path, filter_pattern: str) -> dict[str, list[Path]]:
     cds: list[Path] = []
@@ -90,19 +67,33 @@ def merge(cds: list[Path], dst: Path) -> bool:
         tmp_dir_ctx.cleanup()
     return True
 
-def main() -> None:
-    avid_cds = get_cds(search_dir, args.filter)
+def main(search_dir: Path, dst_dir: Path, filter_pattern: str) -> None:
+    search_path = config.mapping.src_dir / search_dir
+    if not search_path.is_dir():
+        log.error('%s is not a directory', search_dir)
+        sys.exit(1)
+    if not dst_dir.exists():
+        log.info('creating %s', dst_dir)
+        dst_dir.mkdir(parents=True)
+
+    avid_cds = get_cds(search_path, filter_pattern)
     log.notice('find %d avids to merge', len(avid_cds))
     for avid, cds in avid_cds.items():
         log.notice('avid: %s, cds: %s', avid, ', '.join([cd.name for cd in cds]))
     for avid, cds in avid_cds.items():
         log.notice('start merging %s', avid)
         real_cds = [Path(cd.read_text()) for cd in cds]
-        success = merge(real_cds, args.dst_dir / f'{avid}.mp4')
+        success = merge(real_cds, dst_dir / f'{avid}.mp4')
         if success:
             for real_cd in real_cds:
                 real_cd.unlink()
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) < 3:
+        log.error('Usage: merge.py <search_dir> <dst_dir> [filter]')
+        sys.exit(2)
+    search_dir_arg = Path(sys.argv[1])
+    dst_dir_arg = Path(sys.argv[2])
+    filter_arg = sys.argv[3] if len(sys.argv) > 3 else ''
+    main(search_dir_arg, dst_dir_arg, filter_arg)

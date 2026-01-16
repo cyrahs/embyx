@@ -21,6 +21,11 @@ class Counter(BaseModel):
 counter = Counter()
 
 
+def reset_counter() -> None:
+    global counter
+    counter = Counter()
+
+
 def update(src_dir: Path, dst_dir: Path) -> None:
     """
     Map .strm files from src_dir with structure xx/yy/zz.strm
@@ -96,6 +101,7 @@ def main() -> None:
     Returns:
         tuple: (files_processed, files_updated, files_skipped)
     """
+    reset_counter()
     src_dir = cfg.src_dir
     dst_dir = cfg.dst_dir
     log.info('starting mapping from %s to %s', src_dir, dst_dir)

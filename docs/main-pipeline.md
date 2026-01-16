@@ -1,13 +1,16 @@
 # Main pipeline overview
 
-This repo's main entrypoint is `src/main.py`. It runs three components in order: RSS magnet ingestion, archive pipeline, and STRM mapping rebuild. Each component is a standalone module with its own config section in `src/core/config.py`.
+This repo's automation uses a combined monitor:
+- `src/monitor.py` runs RSS + archive every 30 minutes, and runs a full STRM mapping rebuild once at startup then watches for `.strm` changes.
+
+`src/main.py` still runs a single pass of RSS + archive + mapping for manual runs. Each component is a standalone module with its own config section in `src/core/config.py`.
 
 ## 1) RSS magnet ingestion (`src/rss.py`)
 
 Purpose: pull unread RSS items, resolve magnet links, add offline tasks to CloudDrive, and refresh completed tasks.
 
 Flow:
-- Load items from FreshRSS label "Actor" by default; if `--rank` or `-r` is passed to `src/rss.py`, use label "Rank".
+- Load items from FreshRSS label "Actor" by default; if `--rank` or `-r` is passed to `./.venv/bin/python run.py rss`, use label "Rank".
 - Parse each item title into an AVID (unique ID for a JAV) with `src/utils/avid.get_avid`.
 - Resolve a magnet per avid:
   - Async search on sukebei (largest trusted or size weighted).
@@ -29,7 +32,8 @@ Key config inputs (see `src/core/config.py`):
 
 Notes:
 - `src/utils/magnet.py` writes chosen magnets to `magnets.log`.
-- `src/rss.py` is callable directly for RSS only runs.
+- Failed AVIDs are put on a 24-hour cooldown in memory; restarting the monitor clears the cooldown.
+- `src/rss.py` is callable directly for RSS-only runs (no CLI flags). Use `./.venv/bin/python run.py rss --rank` for rank runs.
 
 ## 2) Archive pipeline (`src/archive.py`)
 
@@ -73,12 +77,7 @@ Flow:
 Key config inputs:
 - `config.mapping.src_dir` and `config.mapping.dst_dir`.
 
-## Entry point order
+## Entry points
 
-`src/main.py` runs:
-
-1. `rss.main()`
-2. `archive.main()`
-3. `mapping.main()`
-
-This order ensures magnets are queued and refreshed first, then new files are archived, and finally STRM mappings are rebuilt to reflect the latest library state.
+- `src/monitor.py`: `rss.main()` + `archive.main()` every 30 minutes, and `mapping.main()` once at startup then on `.strm` changes.
+- `src/main.py`: one-shot run in order (`rss.main()`, `archive.main()`, `mapping.main()`).

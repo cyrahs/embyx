@@ -1,9 +1,9 @@
 import asyncio
 import re
+import sys
 from collections.abc import Coroutine
 from pathlib import Path
 
-from tap import Tap
 from tqdm.asyncio import tqdm_asyncio
 
 from src.core import config, logger
@@ -11,15 +11,6 @@ from src.utils import get_brand, magnet, web
 
 log = logger.get('fill_actor')
 cfg = config.fill_actor
-
-class Args(Tap):
-    actor_ids: list[str]
-    """actor_ids in javbus like 11w6"""
-
-    def configure(self) -> None:
-        self.add_argument('actor_ids', nargs='+', help='actor_ids in javbus like 11w6')
-
-args = Args().parse_args()
 
 def find_exists_in_actor(avid: str) -> list[Path]:
     avid = avid.upper()
@@ -107,4 +98,4 @@ async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912
 
 
 if __name__ == '__main__':
-    asyncio.run(main(args.actor_ids))
+    asyncio.run(main(sys.argv[1:]))

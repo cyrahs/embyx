@@ -3,24 +3,15 @@ import time
 
 import httpx
 from grpc import RpcError
-from tap import Tap
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from tqdm.asyncio import tqdm_asyncio
 
 from src.core import config, logger
 from src.utils import clouddrive, freshrss, get_avid, magnet, web
 
-
-class Args(Tap):
-    rank: bool = False
-
-    def configure(self) -> None:
-        self.add_argument('-r', '--rank', action='store_true', help='get magnets from rank category')
-
-
-args = Args().parse_args()
-
 log = logger.get('rss')
+COOLDOWN_SECONDS = 24 * 60 * 60
+FAILED_AVID_COOLDOWN: dict[str, float] = {}
 
 
 @retry(
@@ -147,11 +138,12 @@ def refresh_finished_magnets() -> None:
         clouddrive.clear_finished_offline_files(config.clouddrive.task_dir_path)
 
 
-def main() -> None:
-    label = 'Rank' if args.rank else 'Actor'
+def main(rank: bool = False) -> None:
+    label = 'Rank' if rank else 'Actor'
     items = freshrss.get_items(label)
     log.info('Find %d items in %s', len(items), label)
     if not items:
+        refresh_finished_magnets()
         return
     avid_item = {}
     for item in items:
@@ -163,9 +155,26 @@ def main() -> None:
             avid_item[avid] = []
         avid_item[avid].append(item)
     log.info('Find %d unique avids in %s', len(avid_item), label)
+    cooldown = FAILED_AVID_COOLDOWN
+    now = time.time()
+    expired_avids = [avid for avid, ts in cooldown.items() if now - ts >= COOLDOWN_SECONDS]
+    for avid in expired_avids:
+        cooldown.pop(avid, None)
+    active_avid_item = {}
+    skipped_avids = []
+    for avid, avid_items in avid_item.items():
+        if avid in cooldown:
+            skipped_avids.append(avid)
+            continue
+        active_avid_item[avid] = avid_items
+    if skipped_avids:
+        log.info('Skipping %d avids due to cooldown', len(skipped_avids))
+    if not active_avid_item:
+        refresh_finished_magnets()
+        return
     # get magnets
     avid_magnet = {}
-    tasks = [get_magnet(k, v, avid_magnet) for k, v in avid_item.items()]
+    tasks = [get_magnet(k, v, avid_magnet) for k, v in active_avid_item.items()]
     try:
         asyncio.run(tqdm_asyncio.gather(*tasks))
     except (Exception, KeyboardInterrupt):
@@ -176,14 +185,17 @@ def main() -> None:
         log_lines.extend(magnet_lines)
         log.info('\n'.join(log_lines))
         # store to txt
-        failed_avid = [i for i in avid_item if i not in avid_magnet]
+        failed_avid = [i for i in active_avid_item if i not in avid_magnet]
         if failed_avid:
             log_lines = [f'Failed to get magnets for {len(failed_avid)} items:']
             for i in failed_avid:
                 log_lines.append(f'{i}')
             log.warning(' '.join(log_lines))
+            failure_time = time.time()
+            for avid in failed_avid:
+                cooldown[avid] = failure_time
     # add magnets to 115
-    add_magnets_and_read(avid_magnet, avid_item)
+    add_magnets_and_read(avid_magnet, active_avid_item)
     refresh_finished_magnets()
 
 
