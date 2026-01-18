@@ -1,5 +1,5 @@
+import asyncio
 import logging
-from pathlib import Path
 from urllib.parse import unquote
 
 import httpx
@@ -28,9 +28,11 @@ magnet_logger.propagate = False
 
 
 class sukebei:  # noqa: N801
+    max_concurrency = 5
     site = nyaapy.torrent.TorrentSite.SUKEBEINYAASI
     url = site.value
-    client = httpx.AsyncClient(proxy=None, limits=httpx.Limits(max_connections=5), timeout=20)
+    client = httpx.AsyncClient(proxy=None, limits=httpx.Limits(max_connections=max_concurrency), timeout=20)
+    _semaphore = asyncio.Semaphore(max_concurrency)
 
     @classmethod
     @retry(
@@ -48,12 +50,13 @@ class sukebei:  # noqa: N801
         }
         if page > 0:
             params['p'] = page
-        try:
-            res = await cls.client.get(cls.url, params=params)
-            res.raise_for_status()
-        except (httpx.HTTPError, httpx.TimeoutException):
-            log.exception('Failed to get %s with %s', cls.url, params)
-            raise
+        async with cls._semaphore:
+            try:
+                res = await cls.client.get(cls.url, params=params)
+                res.raise_for_status()
+            except (httpx.HTTPError, httpx.TimeoutException):
+                log.exception('Failed to get %s with %s', cls.url, params)
+                raise
         return nyaapy.parser.parse_nyaa(res.text, limit=None, site=cls.site)
 
 
