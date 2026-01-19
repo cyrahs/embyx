@@ -1,3 +1,4 @@
+import signal
 import threading
 import time
 from pathlib import Path
@@ -22,6 +23,7 @@ RUN_INTERVAL_SECONDS = 30 * 60
 DEBOUNCE_SECONDS = 2
 FULL_SYNC_INTERVAL_SECONDS = 24 * 60 * 60
 FULL_SYNC_RETRY_SECONDS = 5 * 60
+SHUTDOWN_TIMEOUT_SECONDS = 10
 
 
 class StrmChangeHandler(FileSystemEventHandler):
@@ -233,6 +235,15 @@ def run_mapping_loop(stop_event: threading.Event) -> None:
 def main() -> None:
     main_log.info('Starting combined monitor')
     stop_event = threading.Event()
+
+    def handle_shutdown(signum, _frame) -> None:  # noqa: ANN001
+        main_log.info('Received %s, shutting down', signal.Signals(signum).name)
+        stop_event.set()
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, handle_shutdown)
+    signal.signal(signal.SIGINT, handle_shutdown)
+
     update_thread = threading.Thread(target=run_update_loop, args=(stop_event,), name='update-monitor', daemon=True)
     update_thread.start()
     try:
@@ -241,7 +252,9 @@ def main() -> None:
         main_log.info('Monitor interrupted, exiting')
     finally:
         stop_event.set()
-        update_thread.join()
+        update_thread.join(timeout=SHUTDOWN_TIMEOUT_SECONDS)
+        if update_thread.is_alive():
+            main_log.warning('Update loop did not exit within %d seconds', SHUTDOWN_TIMEOUT_SECONDS)
 
 
 if __name__ == '__main__':
