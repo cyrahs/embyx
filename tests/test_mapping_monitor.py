@@ -48,7 +48,7 @@ def import_monitor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> ModuleTyp
     def noop() -> None:
         return None
 
-    def noop_rss(*_args, **_kwargs) -> None:
+    async def noop_rss(*_args, **_kwargs) -> None:
         return None
 
     archive_module = ModuleType('src.archive')

@@ -57,10 +57,10 @@ def main() -> None:
     elif args.command == 'monitor':
         if command_args:
             parser.error('monitor does not accept arguments')
-        monitor.main()
+        asyncio.run(monitor.main())
     elif args.command == 'rss':
         rss_args = RssArgs().parse_args(command_args)
-        rss.main(rank=rss_args.rank)
+        asyncio.run(rss.main(rank=rss_args.rank))
     elif args.command == 'fill_actor':
         fill_args = FillActorArgs().parse_args(command_args)
         asyncio.run(fill_actor.main(fill_args.actor_ids))

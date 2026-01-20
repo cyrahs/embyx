@@ -1,3 +1,4 @@
+import asyncio
 import signal
 import threading
 import time
@@ -118,23 +119,29 @@ def should_clear_full_sync(success: bool, counter_before: int, counter_after: in
     return success and counter_before == counter_after
 
 
-def run_update_once() -> None:
-    rss.main()
+async def run_update_once() -> None:
+    await rss.main()
     archive.main()
 
 
-def run_update_loop(stop_event: threading.Event) -> None:
+async def wait_for_stop(stop_event: threading.Event, timeout: float) -> bool:
+    if timeout <= 0:
+        return stop_event.is_set()
+    return await asyncio.to_thread(stop_event.wait, timeout)
+
+
+async def run_update_loop(stop_event: threading.Event) -> None:
     update_log.info('Starting update loop with %d second interval', RUN_INTERVAL_SECONDS)
     while not stop_event.is_set():
         start = time.monotonic()
         try:
-            run_update_once()
+            await run_update_once()
         except Exception:
             update_log.exception('Update monitor run failed')
         elapsed = time.monotonic() - start
         sleep_for = max(0, RUN_INTERVAL_SECONDS - elapsed)
         update_log.info('Sleeping %d seconds before next update run', int(sleep_for))
-        if stop_event.wait(timeout=sleep_for):
+        if await wait_for_stop(stop_event, sleep_for):
             break
     update_log.info('Update loop exiting')
 
@@ -232,30 +239,39 @@ def run_mapping_loop(stop_event: threading.Event) -> None:
         observer.join()
 
 
-def main() -> None:
+async def main() -> None:
     main_log.info('Starting combined monitor')
     stop_event = threading.Event()
 
     def handle_shutdown(signum, _frame) -> None:  # noqa: ANN001
         main_log.info('Received %s, shutting down', signal.Signals(signum).name)
         stop_event.set()
-        raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
 
-    update_thread = threading.Thread(target=run_update_loop, args=(stop_event,), name='update-monitor', daemon=True)
-    update_thread.start()
+    mapping_thread = threading.Thread(target=run_mapping_loop, args=(stop_event,), name='mapping-monitor', daemon=True)
+    mapping_thread.start()
+    update_task = asyncio.create_task(run_update_loop(stop_event))
     try:
-        run_mapping_loop(stop_event)
+        await update_task
     except KeyboardInterrupt:
         main_log.info('Monitor interrupted, exiting')
+    except Exception:
+        main_log.exception('Update loop crashed')
     finally:
         stop_event.set()
-        update_thread.join(timeout=SHUTDOWN_TIMEOUT_SECONDS)
-        if update_thread.is_alive():
-            main_log.warning('Update loop did not exit within %d seconds', SHUTDOWN_TIMEOUT_SECONDS)
+        if not update_task.done():
+            try:
+                await asyncio.wait_for(update_task, timeout=SHUTDOWN_TIMEOUT_SECONDS)
+            except asyncio.TimeoutError:
+                main_log.warning('Update loop did not exit within %d seconds', SHUTDOWN_TIMEOUT_SECONDS)
+            except Exception:
+                main_log.exception('Update loop did not exit cleanly')
+        mapping_thread.join(timeout=SHUTDOWN_TIMEOUT_SECONDS)
+        if mapping_thread.is_alive():
+            main_log.warning('Mapping loop did not exit within %d seconds', SHUTDOWN_TIMEOUT_SECONDS)
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

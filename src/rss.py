@@ -138,7 +138,7 @@ def refresh_finished_magnets() -> None:
         clouddrive.clear_finished_offline_files(config.clouddrive.task_dir_path)
 
 
-def main(rank: bool = False) -> None:
+async def main(rank: bool = False) -> None:
     label = 'Rank' if rank else 'Actor'
     items = freshrss.get_items(label)
     log.info('Find %d items in %s', len(items), label)
@@ -176,7 +176,7 @@ def main(rank: bool = False) -> None:
     avid_magnet = {}
     tasks = [get_magnet(k, v, avid_magnet) for k, v in active_avid_item.items()]
     try:
-        asyncio.run(tqdm_asyncio.gather(*tasks))
+        await tqdm_asyncio.gather(*tasks)
     except (Exception, KeyboardInterrupt):
         log.exception('Failed to get magnets')
     finally:
@@ -200,4 +200,4 @@ def main(rank: bool = False) -> None:
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
