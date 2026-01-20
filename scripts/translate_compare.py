@@ -5,7 +5,7 @@ import random
 from pathlib import Path
 
 from defusedxml.ElementTree import parse as xmlparse
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 from tqdm import tqdm
 
 from src.core import config, logger
@@ -105,11 +105,20 @@ async def translate_text(client: AsyncOpenAI, model: str, text: str) -> str:
         )
         tqdm.write(f'{model}: {completion.choices[0].message.content}')
         return completion.choices[0].message.content
-    except Exception as e:
+    except (OpenAIError, TimeoutError) as e:
         return f'Error: {e!s}'
 
 
-async def main() -> None:
+def write_comparison(output_file: Path, header: list[str], results: list[dict[str, str]]) -> None:
+    with output_file.open('w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=header)
+        writer.writeheader()
+        writer.writerows(results)
+
+    log.info('Comparison saved to %s', output_file.absolute())
+
+
+async def main() -> tuple[list[str], list[dict[str, str]], Path] | None:
     cfg = config.translator
     # Use config from codebase
     client = AsyncOpenAI(api_key=cfg.openai_api_key, base_url=cfg.openai_base_url)
@@ -117,7 +126,7 @@ async def main() -> None:
     nfo_dir = Path('/root/media/embyx/local/actor/clt')
     if not nfo_dir.exists():
         log.error('Directory %s does not exist.', nfo_dir)
-        return
+        return None
 
     log.info('Loading titles...')
     titles = await get_japanese_titles(nfo_dir, limit=100)
@@ -138,20 +147,17 @@ async def main() -> None:
         tasks = [translate_text(client, model, jp_title) for model in MODELS]
         translations = await asyncio.gather(*tasks)
 
-        for model, trans in zip(MODELS, translations, strict=True):
-            row[model] = trans
+        row.update(dict(zip(MODELS, translations, strict=True)))
 
         results.append(row)
 
     # Save to CSV
     output_file = Path('translation_comparison.csv')
-    with open(output_file, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=header)
-        writer.writeheader()
-        writer.writerows(results)
-
-    log.info('Comparison saved to %s', output_file.absolute())
+    return header, results, output_file
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    comparison = asyncio.run(main())
+    if comparison is not None:
+        header, results, output_file = comparison
+        write_comparison(output_file, header, results)

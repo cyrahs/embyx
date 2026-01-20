@@ -34,7 +34,7 @@ class CloudDriveClient:
         """
         return self.stub.GetSystemInfo(empty_pb2.Empty())
 
-    def get_sub_files(self, path: str, force_refresh: bool = False) -> list[clouddrive_pb2.CloudDriveFile]:
+    def get_sub_files(self, path: str, *, force_refresh: bool = False) -> list[clouddrive_pb2.CloudDriveFile]:
         """列出目录中的文件
 
         Args:

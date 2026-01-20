@@ -1,6 +1,6 @@
 [project]
 name = "embyx"
-version = "0.0.2"
+version = "0.0.3"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -25,6 +25,12 @@ dependencies = [
 
 [tool.ruff]
 line-length = 140
+extend-exclude = [
+  "src/utils/clouddrive/clouddrive_pb2_grpc.py",
+  "src/utils/clouddrive/clouddrive_pb2.py",
+]
+
+[tool.ruff.lint]
 select = ['ALL']
 ignore = [
   'Q000',    # Double quotes
@@ -41,6 +47,10 @@ ignore = [
 "tests/**" = [
   "S101",    # Use of assert
   "PLR2004", # Use of magic value
+  "ANN002",  # Missing type annotation for *args
+  "ANN003",  # Missing type annotation for **kwargs
+  "S108",    # Probable insecure usage of temporary file or directory
+  "C901",    # Too complex
 ]
 
 [tool.ruff.format]
@@ -49,7 +59,4 @@ indent-style = 'space'
 line-ending = 'lf'
 
 [dependency-groups]
-dev = [
-    "pytest-asyncio>=1.3.0",
-    "ruff>=0.14.11",
-]
+dev = ["pytest-asyncio>=1.3.0", "ruff>=0.14.11"]

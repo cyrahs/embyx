@@ -10,6 +10,8 @@ from src.utils import get_avid
 
 log = logger.get('merge')
 
+MIN_ARGS = 3
+
 def get_cds(search_dir: Path, filter_pattern: str) -> dict[str, list[Path]]:
     cds: list[Path] = []
     for root, _, files in search_dir.walk():
@@ -90,10 +92,10 @@ def main(search_dir: Path, dst_dir: Path, filter_pattern: str) -> None:
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
+    if len(sys.argv) < MIN_ARGS:
         log.error('Usage: merge.py <search_dir> <dst_dir> [filter]')
         sys.exit(2)
     search_dir_arg = Path(sys.argv[1])
     dst_dir_arg = Path(sys.argv[2])
-    filter_arg = sys.argv[3] if len(sys.argv) > 3 else ''
+    filter_arg = sys.argv[MIN_ARGS] if len(sys.argv) > MIN_ARGS else ''
     main(search_dir_arg, dst_dir_arg, filter_arg)

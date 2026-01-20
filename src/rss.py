@@ -138,7 +138,7 @@ def refresh_finished_magnets() -> None:
         clouddrive.clear_finished_offline_files(config.clouddrive.task_dir_path)
 
 
-async def main(rank: bool = False) -> None:
+async def main(*, rank: bool = False) -> None:  # noqa: C901, PLR0912
     label = 'Rank' if rank else 'Actor'
     items = freshrss.get_items(label)
     log.info('Find %d items in %s', len(items), label)

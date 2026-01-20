@@ -28,7 +28,7 @@ SHUTDOWN_TIMEOUT_SECONDS = 10
 
 
 class StrmChangeHandler(FileSystemEventHandler):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         trigger_event: threading.Event,
         last_event_time: dict[str, float],
@@ -44,7 +44,7 @@ class StrmChangeHandler(FileSystemEventHandler):
         self._deleted_paths = deleted_paths
         self._lock = lock
 
-    def _record_event(self, path: str | None, is_directory: bool, *, deleted: bool) -> None:
+    def _record_event(self, path: str | None, *, is_directory: bool, deleted: bool) -> None:
         if is_directory or not path:
             return
         if Path(path).suffix.lower() != '.strm':
@@ -62,24 +62,24 @@ class StrmChangeHandler(FileSystemEventHandler):
         self._trigger_event.set()
 
     def on_created(self, event) -> None:  # noqa: ANN001
-        self._record_event(event.src_path, event.is_directory, deleted=False)
+        self._record_event(event.src_path, is_directory=event.is_directory, deleted=False)
 
     def on_modified(self, event) -> None:  # noqa: ANN001
-        self._record_event(event.src_path, event.is_directory, deleted=False)
+        self._record_event(event.src_path, is_directory=event.is_directory, deleted=False)
 
     def on_deleted(self, event) -> None:  # noqa: ANN001
-        self._record_event(event.src_path, event.is_directory, deleted=True)
+        self._record_event(event.src_path, is_directory=event.is_directory, deleted=True)
 
     def on_moved(self, event) -> None:  # noqa: ANN001
-        self._record_event(event.src_path, event.is_directory, deleted=True)
+        self._record_event(event.src_path, is_directory=event.is_directory, deleted=True)
         dest_path = getattr(event, 'dest_path', None)
-        self._record_event(dest_path, event.is_directory, deleted=False)
+        self._record_event(dest_path, is_directory=event.is_directory, deleted=False)
 
 
 def run_mapping_full() -> bool:
     try:
         mapping.main()
-    except Exception:
+    except Exception:  # noqa: BLE001
         mapping_log.exception('Mapping run failed')
         return False
     return True
@@ -96,13 +96,13 @@ def run_mapping_incremental(changed_paths: set[Path], deleted_paths: set[Path]) 
     for path in sorted(deleted_paths):
         try:
             mapping.delete_one(path, src_dir, dst_dir)
-        except Exception:
+        except Exception:  # noqa: BLE001
             mapping_log.exception('Incremental delete failed for %s', path)
             failed_deleted.add(path)
     for path in sorted(changed_paths):
         try:
             mapping.update_one(path, src_dir, dst_dir)
-        except Exception:
+        except Exception:  # noqa: BLE001
             mapping_log.exception('Incremental update failed for %s', path)
             failed_changed.add(path)
     mapping_log.info(
@@ -115,7 +115,7 @@ def run_mapping_incremental(changed_paths: set[Path], deleted_paths: set[Path]) 
     return failed_changed, failed_deleted
 
 
-def should_clear_full_sync(success: bool, counter_before: int, counter_after: int) -> bool:
+def should_clear_full_sync(*, success: bool, counter_before: int, counter_after: int) -> bool:
     return success and counter_before == counter_after
 
 
@@ -124,7 +124,7 @@ async def run_update_once() -> None:
     archive.main()
 
 
-async def wait_for_stop(stop_event: threading.Event, timeout: float) -> bool:
+async def wait_for_stop(stop_event: threading.Event, timeout: float) -> bool:  # noqa: ASYNC109
     if timeout <= 0:
         return stop_event.is_set()
     return await asyncio.to_thread(stop_event.wait, timeout)
@@ -136,7 +136,7 @@ async def run_update_loop(stop_event: threading.Event) -> None:
         start = time.monotonic()
         try:
             await run_update_once()
-        except Exception:
+        except Exception:  # noqa: BLE001
             update_log.exception('Update monitor run failed')
         elapsed = time.monotonic() - start
         sleep_for = max(0, RUN_INTERVAL_SECONDS - elapsed)
@@ -146,7 +146,7 @@ async def run_update_loop(stop_event: threading.Event) -> None:
     update_log.info('Update loop exiting')
 
 
-def run_mapping_loop(stop_event: threading.Event) -> None:
+def run_mapping_loop(stop_event: threading.Event) -> None:  # noqa: C901, PLR0912, PLR0915
     mapping_log.info('Starting mapping monitor')
     src_dir = mapping.cfg.src_dir
     trigger_event = threading.Event()
@@ -182,7 +182,11 @@ def run_mapping_loop(stop_event: threading.Event) -> None:
                 cleared = False
                 with lock:
                     counter_after = event_counter['value']
-                    if should_clear_full_sync(success, counter_before, counter_after):
+                    if should_clear_full_sync(
+                        success=success,
+                        counter_before=counter_before,
+                        counter_after=counter_after,
+                    ):
                         changed_paths.clear()
                         deleted_paths.clear()
                         trigger_event.clear()
@@ -257,16 +261,16 @@ async def main() -> None:
         await update_task
     except KeyboardInterrupt:
         main_log.info('Monitor interrupted, exiting')
-    except Exception:
+    except Exception:  # noqa: BLE001
         main_log.exception('Update loop crashed')
     finally:
         stop_event.set()
         if not update_task.done():
             try:
                 await asyncio.wait_for(update_task, timeout=SHUTDOWN_TIMEOUT_SECONDS)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 main_log.warning('Update loop did not exit within %d seconds', SHUTDOWN_TIMEOUT_SECONDS)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 main_log.exception('Update loop did not exit cleanly')
         mapping_thread.join(timeout=SHUTDOWN_TIMEOUT_SECONDS)
         if mapping_thread.is_alive():

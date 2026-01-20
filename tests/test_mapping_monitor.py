@@ -144,17 +144,17 @@ def test_strm_change_handler_tracks_delete(tmp_path: Path, monkeypatch: pytest.M
 
 def test_should_clear_full_sync_success_no_new_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monitor_module = import_monitor(monkeypatch, tmp_path)
-    assert monitor_module.should_clear_full_sync(True, 10, 10)
+    assert monitor_module.should_clear_full_sync(success=True, counter_before=10, counter_after=10)
 
 
 def test_should_clear_full_sync_success_with_new_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monitor_module = import_monitor(monkeypatch, tmp_path)
-    assert not monitor_module.should_clear_full_sync(True, 10, 11)
+    assert not monitor_module.should_clear_full_sync(success=True, counter_before=10, counter_after=11)
 
 
 def test_should_clear_full_sync_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monitor_module = import_monitor(monkeypatch, tmp_path)
-    assert not monitor_module.should_clear_full_sync(False, 10, 10)
+    assert not monitor_module.should_clear_full_sync(success=False, counter_before=10, counter_after=10)
 
 
 def test_run_mapping_incremental_returns_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -166,7 +166,8 @@ def test_run_mapping_incremental_returns_failures(tmp_path: Path, monkeypatch: p
     monkeypatch.setattr(monitor_module.mapping, 'cfg', SimpleNamespace(src_dir=src_dir, dst_dir=dst_dir))
 
     def boom(*_args, **_kwargs) -> None:
-        raise OSError('boom')
+        msg = 'boom'
+        raise OSError(msg)
 
     monkeypatch.setattr(monitor_module.mapping, 'update_one', boom)
     monkeypatch.setattr(monitor_module.mapping, 'delete_one', boom)

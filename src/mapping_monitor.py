@@ -22,7 +22,7 @@ class StrmChangeHandler(FileSystemEventHandler):
         self._last_event_time = last_event_time
         self._lock = lock
 
-    def _mark(self, path: str | None, is_directory: bool) -> None:
+    def _mark(self, path: str | None, *, is_directory: bool) -> None:
         if is_directory or not path:
             return
         if Path(path).suffix.lower() != '.strm':
@@ -32,18 +32,18 @@ class StrmChangeHandler(FileSystemEventHandler):
         self._trigger_event.set()
 
     def on_created(self, event) -> None:  # noqa: ANN001
-        self._mark(event.src_path, event.is_directory)
+        self._mark(event.src_path, is_directory=event.is_directory)
 
     def on_modified(self, event) -> None:  # noqa: ANN001
-        self._mark(event.src_path, event.is_directory)
+        self._mark(event.src_path, is_directory=event.is_directory)
 
     def on_deleted(self, event) -> None:  # noqa: ANN001
-        self._mark(event.src_path, event.is_directory)
+        self._mark(event.src_path, is_directory=event.is_directory)
 
     def on_moved(self, event) -> None:  # noqa: ANN001
-        self._mark(event.src_path, event.is_directory)
+        self._mark(event.src_path, is_directory=event.is_directory)
         dest_path = getattr(event, 'dest_path', None)
-        self._mark(dest_path, event.is_directory)
+        self._mark(dest_path, is_directory=event.is_directory)
 
 
 def run_mapping() -> bool:
