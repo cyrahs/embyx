@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +53,7 @@ class FillActor(BaseModel):
     additional_brand_path: list[Path]
     move_in_path: Path
 
+
 class CloudDrive(BaseModel):
     address: str
     api_token: str
@@ -91,5 +94,31 @@ class Config(BaseSettings):
             TomlConfigSettingsSource(settings_cls),
         )
 
+def _use_test_config() -> bool:
+    if os.environ.get('EMBYX_USE_REAL_CONFIG'):
+        return False
+    return 'pytest' in sys.modules or os.environ.get('PYTEST_CURRENT_TEST') is not None
 
-config = Config()
+
+def _build_test_config() -> Config:
+    return Config.model_construct(
+        log_dir=Path('log'),
+        avid=Avid(get_id_exceptions=[], ignored_id_pattern=[], brand_mapping={}),
+        archive=Archive(mapping={}, min_size=0, src_dir=Path(), dst_dir=Path(), brand_mapping={}),
+        mapping=Mapping(src_dir=Path(), dst_dir=Path()),
+        translate=Translate(nfo_dir=Path()),
+        translator=Translator(openai_api_key='', openai_base_url='http://localhost', model_list=[]),
+        clouddrive=CloudDrive(
+            address='localhost:0',
+            api_token='',
+            task_dir_path='',
+            cloud_name='',
+            cloud_account_id='',
+        ),
+        freshrss=Freshrss(freshrss_url='', freshrss_api_key='', proxy=''),
+        emby=Emby(url='', api_key='', user_id=''),
+        fill_actor=FillActor(actor_brand_path=Path(), additional_brand_path=[], move_in_path=Path()),
+    )
+
+
+config = _build_test_config() if _use_test_config() else Config()

@@ -111,6 +111,10 @@ If you must add/change dependencies:
 * Update `uv.lock` in the same PR.
 * Keep dependency diffs small and justified.
 
+### Version bump
+
+If you change `[project].version` in `pyproject.toml`, keep the version in `uv.lock` in sync in the same change. Avoid any unrelated lockfile churn.
+
 ### Secrets / config hygiene
 
 * Never add real tokens/URLs/passwords to the repo.
@@ -122,6 +126,7 @@ If you must add/change dependencies:
 * [ ] Change is minimal and directly addresses the task.
 * [ ] Tests pass (or there is a clear reason they can’t run).
 * [ ] No accidental lockfile churn (unless dependencies were intentionally changed).
+* [ ] Version bumps keep `uv.lock` in sync.
 * [ ] No secrets/config files were accessed or modified (`config.toml`, `.env`).
 * [ ] Commands in docs use `./.venv/bin/python` (not `python` / `python3`).
 
