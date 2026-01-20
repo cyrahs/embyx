@@ -15,6 +15,14 @@ log = logger.get('archive')
 cfg = config.archive
 
 MAX_RENAME_ATTEMPTS = 5
+COPY_SUFFIX_RE = re.compile(r'\s*\(\d+\)$')
+
+
+def _safe_relative(path: Path, base: Path) -> Path:
+    try:
+        return path.relative_to(base)
+    except ValueError:
+        return path
 
 
 def remove_00(avid: str) -> str:
@@ -50,6 +58,44 @@ def is_4k_video(video: Path) -> bool:
     if stem == '4k':
         return False
     return not stem[-3].isalnum()
+
+
+def normalize_copy_suffix(stem: str) -> str:
+    return COPY_SUFFIX_RE.sub('', stem)
+
+
+def drop_duplicate_copies(folder: Path, videos: list[Path]) -> list[Path]:
+    base_by_key: dict[tuple[str, str, int], Path] = {}
+    copies_by_key: dict[tuple[str, str, int], list[Path]] = {}
+    for video in videos:
+        size = video.stat().st_size
+        normalized_stem = normalize_copy_suffix(video.stem)
+        key = (normalized_stem, video.suffix.lower(), size)
+        if video.stem == normalized_stem:
+            base_by_key.setdefault(key, video)
+        else:
+            copies_by_key.setdefault(key, []).append(video)
+    dropped: list[Path] = []
+    for key, copies in copies_by_key.items():
+        base = base_by_key.get(key)
+        if base is None:
+            continue
+        dropped.extend(copies)
+        log.info(
+            'duplicate videos found in %s, keeping %s and dropping %s',
+            folder.name,
+            base.name,
+            ', '.join(copy.name for copy in copies),
+        )
+        for copy in copies:
+            try:
+                copy.unlink()
+            except OSError:
+                log.exception('failed to remove duplicate video %s in %s', copy.name, folder.name)
+    if not dropped:
+        return videos
+    dropped_set = set(dropped)
+    return [video for video in videos if video not in dropped_set]
 
 
 def rename(root: Path) -> None:
@@ -105,6 +151,7 @@ def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901, PLR0912, PLR0915
                 shutil.rmtree(folder)
                 break
             continue
+        videos = drop_duplicate_copies(folder, videos)
         # check avid
         avids = [get_avid(t.name) for t in videos]
         if len(set(avids)) != 1:
@@ -192,7 +239,7 @@ def find_video_dst(video: Path, dst_dir: Path) -> Path | None:
     if not is_video(video):
         return None
     if not (avid := get_avid(video.name)):
-        log.warning('failed to get avid for %s, skipping find_video_dst', video.relative_to(cfg.src_dir))
+        log.warning('failed to get avid for %s, skipping find_video_dst', _safe_relative(video, cfg.src_dir))
         return None
     return find_dst_dir(avid, dst_dir) / video.name
 
@@ -211,9 +258,9 @@ def archive(src_dir: Path, dst_dir: Path) -> None:
         if not dst.parent.exists():
             dst.parent.mkdir(parents=True)
         if dst.exists():
-            log.warning('%s exists, skipping', dst.relative_to(cfg.dst_dir))
+            log.warning('%s exists, skipping', _safe_relative(dst, cfg.dst_dir))
             continue
-        log.notice('moving %s to %s', video.relative_to(src_dir), dst.relative_to(cfg.dst_dir))
+        log.notice('moving %s to %s', video.relative_to(src_dir), _safe_relative(dst, cfg.dst_dir))
         video.rename(dst)
 
 
