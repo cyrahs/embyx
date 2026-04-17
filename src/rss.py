@@ -12,6 +12,47 @@ from src.utils import clouddrive, freshrss, get_avid, magnet, web
 log = logger.get('rss')
 COOLDOWN_SECONDS = 24 * 60 * 60
 FAILED_AVID_COOLDOWN: dict[str, float] = {}
+CLOUDDRIVE_RETRY_EXCEPTIONS = (RpcError, httpx.HTTPError, httpx.TimeoutException)
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type(CLOUDDRIVE_RETRY_EXCEPTIONS),
+    reraise=True,
+)
+def refresh_task_dir() -> None:
+    clouddrive.get_sub_files(config.clouddrive.task_dir_path, force_refresh=True)
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type(CLOUDDRIVE_RETRY_EXCEPTIONS),
+    reraise=True,
+)
+def list_finished_targets() -> list:
+    return clouddrive.list_finished_offline_files_by_path(config.clouddrive.task_dir_path).offlineFiles
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type(CLOUDDRIVE_RETRY_EXCEPTIONS),
+    reraise=True,
+)
+def refresh_finished_target(name: str) -> None:
+    clouddrive.get_sub_files(config.clouddrive.task_dir_path + '/' + name, force_refresh=True)
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type(CLOUDDRIVE_RETRY_EXCEPTIONS),
+    reraise=True,
+)
+def clear_finished_magnets() -> None:
+    clouddrive.clear_finished_offline_files(config.clouddrive.task_dir_path)
 
 
 @retry(
@@ -115,14 +156,14 @@ async def get_magnet(avid: str, items: list[dict], avid_magnet: dict[str, str]) 
 
 def refresh_finished_magnets() -> None:
     log.info('Start to refresh finished magnets')
-    clouddrive.get_sub_files(config.clouddrive.task_dir_path, force_refresh=True)
+    refresh_task_dir()
     log.info('List finished magnets')
-    targets = clouddrive.list_finished_offline_files_by_path(config.clouddrive.task_dir_path).offlineFiles
+    targets = list_finished_targets()
     all_success = True
     for target in targets:
         try:
             log.info('Refreshing %s', target.name)
-            clouddrive.get_sub_files(config.clouddrive.task_dir_path + '/' + target.name, force_refresh=True)
+            refresh_finished_target(target.name)
         except FileNotFoundError:
             log.warning('Path not found, skip')
             continue
@@ -135,7 +176,7 @@ def refresh_finished_magnets() -> None:
             continue
     if all_success:
         log.info('Clear finished magnet records')
-        clouddrive.clear_finished_offline_files(config.clouddrive.task_dir_path)
+        clear_finished_magnets()
 
 
 async def main(*, rank: bool = False) -> None:  # noqa: C901, PLR0912

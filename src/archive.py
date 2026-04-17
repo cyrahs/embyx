@@ -8,6 +8,10 @@ import shutil
 import time
 from pathlib import Path
 
+import httpx
+from grpc import RpcError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
 from src.core import config, logger
 from src.utils import clouddrive, get_avid, get_brand, has_video_suffix, is_video
 
@@ -16,6 +20,17 @@ cfg = config.archive
 
 MAX_RENAME_ATTEMPTS = 5
 COPY_SUFFIX_RE = re.compile(r'\s*\(\d+\)$')
+CLOUDDRIVE_RETRY_EXCEPTIONS = (RpcError, httpx.HTTPError, httpx.TimeoutException)
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type(CLOUDDRIVE_RETRY_EXCEPTIONS),
+    reraise=True,
+)
+def refresh_task_dir() -> None:
+    clouddrive.get_sub_files(config.clouddrive.task_dir_path, force_refresh=True)
 
 
 def _safe_relative(path: Path, base: Path) -> Path:
@@ -267,7 +282,7 @@ def archive(src_dir: Path, dst_dir: Path) -> None:
 def main() -> None:
     # refresh task dir
     log.info('Refreshing task directory')
-    clouddrive.get_sub_files(config.clouddrive.task_dir_path, force_refresh=True)
+    refresh_task_dir()
     for src, dst in cfg.mapping.items():
         src_path = cfg.src_dir / src
         dst_path = cfg.dst_dir / dst

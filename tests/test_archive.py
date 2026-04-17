@@ -999,3 +999,23 @@ def test_main_orchestrates_calls(
         call(mod.cfg.src_dir / "inbox", mod.cfg.dst_dir / "outbox"),
         call(mod.cfg.src_dir / "in2", mod.cfg.dst_dir / "out2"),
     ]
+
+
+def test_refresh_task_dir_retries_transient_clouddrive_errors(
+    mod: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dummy_config = SimpleNamespace(clouddrive=SimpleNamespace(task_dir_path='/task_dir_path'))
+    monkeypatch.setattr(mod, 'config', dummy_config, raising=False)
+
+    class DummyRpcError(mod.RpcError):
+        pass
+
+    get_sub_files = Mock(side_effect=[DummyRpcError('temporary failure'), []])
+    monkeypatch.setattr(mod, 'clouddrive', SimpleNamespace(get_sub_files=get_sub_files), raising=False)
+    monkeypatch.setattr(mod.refresh_task_dir.retry, 'sleep', lambda _seconds: None)
+
+    mod.refresh_task_dir()
+
+    assert get_sub_files.call_count == 2
+    get_sub_files.assert_called_with('/task_dir_path', force_refresh=True)
