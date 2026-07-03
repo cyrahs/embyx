@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import re
 import sys
 from collections.abc import Coroutine
@@ -98,4 +99,11 @@ async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912
 
 
 if __name__ == '__main__':
-    asyncio.run(main(sys.argv[1:]))
+    async def _run() -> None:
+        try:
+            await main(sys.argv[1:])
+        finally:
+            cleanup = importlib.import_module('src.utils.cleanup')
+            await cleanup.aclose_all()
+
+    asyncio.run(_run())

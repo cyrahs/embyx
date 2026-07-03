@@ -39,12 +39,44 @@ def _get_magnet_logger() -> logging.Logger:
     return magnet_logger
 
 
+def close_magnet_logger() -> None:
+    magnet_logger = logging.getLogger('magnet_chosen')
+    for handler in list(magnet_logger.handlers):
+        if not getattr(handler, _MAGNET_HANDLER_MARKER, False):
+            continue
+        magnet_logger.removeHandler(handler)
+        handler.close()
+
+
 class sukebei:  # noqa: N801
     max_concurrency = 5
     site = nyaapy.torrent.TorrentSite.SUKEBEINYAASI
     url = site.value
-    client = httpx.AsyncClient(proxy=None, limits=httpx.Limits(max_connections=max_concurrency), timeout=20)
-    _semaphore = asyncio.Semaphore(max_concurrency)
+    _client: httpx.AsyncClient | None = None
+    _semaphore: asyncio.Semaphore | None = None
+    _semaphore_loop: asyncio.AbstractEventLoop | None = None
+
+    @classmethod
+    def _get_client(cls) -> httpx.AsyncClient:
+        if cls._client is None:
+            cls._client = httpx.AsyncClient(proxy=None, limits=httpx.Limits(max_connections=cls.max_concurrency), timeout=20)
+        return cls._client
+
+    @classmethod
+    def _get_semaphore(cls) -> asyncio.Semaphore:
+        loop = asyncio.get_running_loop()
+        if cls._semaphore is None or cls._semaphore_loop is not loop:
+            cls._semaphore = asyncio.Semaphore(cls.max_concurrency)
+            cls._semaphore_loop = loop
+        return cls._semaphore
+
+    @classmethod
+    async def aclose(cls) -> None:
+        if cls._client is not None:
+            await cls._client.aclose()
+        cls._client = None
+        cls._semaphore = None
+        cls._semaphore_loop = None
 
     @classmethod
     @retry(
@@ -62,9 +94,9 @@ class sukebei:  # noqa: N801
         }
         if page > 0:
             params['p'] = page
-        async with cls._semaphore:
+        async with cls._get_semaphore():
             try:
-                res = await cls.client.get(cls.url, params=params)
+                res = await cls._get_client().get(cls.url, params=params)
                 res.raise_for_status()
             except (httpx.HTTPError, httpx.TimeoutException):
                 log.exception('Failed to get %s with %s', cls.url, params)

@@ -3,14 +3,16 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from src.core import config
 
-cfg = config.freshrss
-headers = {'Authorization': f'GoogleLogin auth={cfg.freshrss_api_key}'}
 _edit_token: str | None = None
 _client: httpx.Client | None = None
 
 
 def _get_proxy() -> str | None:
-    return cfg.proxy or None
+    return config.freshrss.proxy or None
+
+
+def _get_headers() -> dict[str, str]:
+    return {'Authorization': f'GoogleLogin auth={config.freshrss.freshrss_api_key}'}
 
 
 def _get_client() -> httpx.Client:
@@ -18,6 +20,14 @@ def _get_client() -> httpx.Client:
     if _client is None:
         _client = httpx.Client(proxy=_get_proxy())
     return _client
+
+
+def close_client() -> None:
+    global _client, _edit_token
+    if _client is not None:
+        _client.close()
+    _client = None
+    _edit_token = None
 
 
 @retry(
@@ -29,7 +39,7 @@ def _get_client() -> httpx.Client:
 def _refresh_edit_token() -> str:
     """Get fresh edit token for FreshRSS API operations."""
     global _edit_token
-    res = _get_client().get(f'{cfg.freshrss_url}/token', headers=headers, timeout=10)
+    res = _get_client().get(f'{config.freshrss.freshrss_url}/token', headers=_get_headers(), timeout=10)
     res.raise_for_status()
     _edit_token = res.text
     return _edit_token
@@ -47,8 +57,8 @@ def get_items(label: str) -> list[dict]:
     params = {'xt': 'user/-/state/com.google/read'}
     items = []
     while True:
-        url = f'{cfg.freshrss_url}/stream/contents/user/-/label/{label}'
-        res = _get_client().get(url, headers=headers, params=params, timeout=10)
+        url = f'{config.freshrss.freshrss_url}/stream/contents/user/-/label/{label}'
+        res = _get_client().get(url, headers=_get_headers(), params=params, timeout=10)
         content = res.json()
         items += content['items']
         if content.get('continuation'):
@@ -74,5 +84,5 @@ def read_items(item_ids: list[str]) -> None:
         'T': _get_edit_token(),
     }
 
-    res = _get_client().post(f'{cfg.freshrss_url}/edit-tag', headers=headers, data=body, timeout=10)
+    res = _get_client().post(f'{config.freshrss.freshrss_url}/edit-tag', headers=_get_headers(), data=body, timeout=10)
     res.raise_for_status()

@@ -1,8 +1,10 @@
 import asyncio
+import importlib
 import signal
 import threading
 import time
 from pathlib import Path
+from types import ModuleType
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -117,6 +119,11 @@ def run_mapping_incremental(changed_paths: set[Path], deleted_paths: set[Path]) 
 
 def should_clear_full_sync(*, success: bool, counter_before: int, counter_after: int) -> bool:
     return success and counter_before == counter_after
+
+
+def get_cleanup_module() -> ModuleType:
+    module_name = 'src.utils.cleanup' if __package__ else 'utils.cleanup'
+    return importlib.import_module(module_name)
 
 
 async def run_update_once() -> None:
@@ -275,6 +282,9 @@ async def main() -> None:
         mapping_thread.join(timeout=SHUTDOWN_TIMEOUT_SECONDS)
         if mapping_thread.is_alive():
             main_log.warning('Mapping loop did not exit within %d seconds', SHUTDOWN_TIMEOUT_SECONDS)
+        else:
+            cleanup = get_cleanup_module()
+            await cleanup.aclose_all()
 
 
 if __name__ == '__main__':

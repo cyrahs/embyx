@@ -123,37 +123,40 @@ async def main() -> tuple[list[str], list[dict[str, str]], Path] | None:
     # Use config from codebase
     client = AsyncOpenAI(api_key=cfg.openai_api_key, base_url=cfg.openai_base_url)
 
-    nfo_dir = Path('/root/media/embyx/local/actor/clt')
-    if not nfo_dir.exists():
-        log.error('Directory %s does not exist.', nfo_dir)
-        return None
+    try:
+        nfo_dir = Path('/root/media/embyx/local/actor/clt')
+        if not nfo_dir.exists():
+            log.error('Directory %s does not exist.', nfo_dir)
+            return None
 
-    log.info('Loading titles...')
-    titles = await get_japanese_titles(nfo_dir, limit=100)
-    log.info('Loaded %d titles.', len(titles))
+        log.info('Loading titles...')
+        titles = await get_japanese_titles(nfo_dir, limit=100)
+        log.info('Loaded %d titles.', len(titles))
 
-    results = []
+        results = []
 
-    # Header
-    header = ['Filename', 'Original Title', *MODELS]
+        # Header
+        header = ['Filename', 'Original Title', *MODELS]
 
-    # Process translations
-    log.info('Translating...')
-    for filename, jp_title in tqdm(titles):
-        row = {'Filename': filename, 'Original Title': jp_title}
+        # Process translations
+        log.info('Translating...')
+        for filename, jp_title in tqdm(titles):
+            row = {'Filename': filename, 'Original Title': jp_title}
 
-        # Parallelize translation for each model? No, let's keep it simple sequential per title or parallel per title
-        # Let's run all models for this title in parallel
-        tasks = [translate_text(client, model, jp_title) for model in MODELS]
-        translations = await asyncio.gather(*tasks)
+            # Parallelize translation for each model? No, let's keep it simple sequential per title or parallel per title
+            # Let's run all models for this title in parallel
+            tasks = [translate_text(client, model, jp_title) for model in MODELS]
+            translations = await asyncio.gather(*tasks)
 
-        row.update(dict(zip(MODELS, translations, strict=True)))
+            row.update(dict(zip(MODELS, translations, strict=True)))
 
-        results.append(row)
+            results.append(row)
 
-    # Save to CSV
-    output_file = Path('translation_comparison.csv')
-    return header, results, output_file
+        # Save to CSV
+        output_file = Path('translation_comparison.csv')
+        return header, results, output_file
+    finally:
+        await client.close()
 
 
 if __name__ == '__main__':

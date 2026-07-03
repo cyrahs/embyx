@@ -38,6 +38,15 @@ def _get_client() -> httpx.AsyncClient:
     return _client
 
 
+async def aclose_client() -> None:
+    global _client
+    if _client is None:
+        return
+    await _client.aclose()
+    _client = None
+    avid_id.clear()
+
+
 async def get_item_playbackinfo(item_id: str) -> dict:
     url = f'{cfg.url}/Items/{item_id}/PlaybackInfo'
     res = await _get_client().get(url)

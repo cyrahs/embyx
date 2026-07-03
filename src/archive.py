@@ -3,6 +3,7 @@ script that process videos and move to target directory
 
 """
 
+import asyncio
 import re
 import shutil
 import time
@@ -297,4 +298,9 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    finally:
+        from src.utils.cleanup import aclose_all
+
+        asyncio.run(aclose_all())

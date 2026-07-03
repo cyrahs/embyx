@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import json
 from pathlib import Path
 
@@ -43,4 +44,11 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    async def _run() -> None:
+        try:
+            await main()
+        finally:
+            cleanup = importlib.import_module('src.utils.cleanup')
+            await cleanup.aclose_all()
+
+    asyncio.run(_run())

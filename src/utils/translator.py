@@ -47,6 +47,14 @@ def _get_client() -> AsyncOpenAI:
     return _client
 
 
+async def aclose_client() -> None:
+    global _client
+    if _client is None:
+        return
+    await _client.close()
+    _client = None
+
+
 def check_valid(text: str) -> bool:
     excemption_length = 30
     if not text.startswith(('抱歉', '对不起')):

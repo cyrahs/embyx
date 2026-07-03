@@ -2,14 +2,18 @@ import asyncio
 
 from src import archive, mapping, rss
 from src.core import logger
+from src.utils.cleanup import aclose_all
 
 log = logger.get('main')
 
 
 async def main() -> None:
-    await rss.main()
-    archive.main()
-    mapping.main()
+    try:
+        await rss.main()
+        archive.main()
+        mapping.main()
+    finally:
+        await aclose_all()
 
 
 if __name__ == '__main__':

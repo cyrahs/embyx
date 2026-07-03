@@ -13,19 +13,32 @@ log = logger.get('javbus')
 
 class javbus:  # noqa: N801
     host = 'https://www.javbus.com'
-    client = httpx.AsyncClient(
-        headers={
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Cookie': 'existmag=all',
-        },
-        timeout=60,
-        limits=httpx.Limits(max_keepalive_connections=0, max_connections=10),
-        proxy=None,
-    )
+    _client: httpx.AsyncClient | None = None
+
+    @classmethod
+    def _get_client(cls) -> httpx.AsyncClient:
+        if cls._client is None:
+            cls._client = httpx.AsyncClient(
+                headers={
+                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                    'Cookie': 'existmag=all',
+                },
+                timeout=60,
+                limits=httpx.Limits(max_keepalive_connections=0, max_connections=10),
+                proxy=None,
+            )
+        return cls._client
+
+    @classmethod
+    async def aclose(cls) -> None:
+        if cls._client is None:
+            return
+        await cls._client.aclose()
+        cls._client = None
 
     @classmethod
     async def scrape_one_page(cls, actor_id: str, page: int) -> list[str]:
-        res = await cls.client.get(url=f'{cls.host}/star/{actor_id}/{page}')
+        res = await cls._get_client().get(url=f'{cls.host}/star/{actor_id}/{page}')
         doc = PyQuery(res.text)
         videos = doc('a[class="movie-box"]')
         ids = [str(i.attr('href')).split('/')[-1].upper() for i in videos.items()]
@@ -34,7 +47,7 @@ class javbus:  # noqa: N801
     @classmethod
     async def get_total_page(cls, actor_id: str) -> int:
         url = f'{cls.host}/star/{actor_id}'
-        res = await cls.client.get(url=url)
+        res = await cls._get_client().get(url=url)
         doc = PyQuery(res.text)
         links = doc(f'a[href^="/star/{actor_id}/"]')
         if links:
@@ -62,7 +75,7 @@ class javbus:  # noqa: N801
             httpx.HTTPError: If network request fails.
         """
         url = f'{cls.host}/{video_id}'
-        res = await cls.client.get(url)
+        res = await cls._get_client().get(url)
         content = res.text
 
         gid_match = re.search(r'var gid = (\d+);', content)
@@ -83,7 +96,7 @@ class javbus:  # noqa: N801
             'Referer': url,
         }
 
-        res = await cls.client.get(ajax_url, headers=headers)
+        res = await cls._get_client().get(ajax_url, headers=headers)
         doc = PyQuery(res.text)
 
         results = []

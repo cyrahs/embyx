@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import re
 from pathlib import Path
 
@@ -155,7 +156,14 @@ async def batch_process(batch_size: int = 10) -> None:
 
 
 def main() -> None:
-    asyncio.run(batch_process())
+    async def _run() -> None:
+        try:
+            await batch_process()
+        finally:
+            cleanup = importlib.import_module('src.utils.cleanup')
+            await cleanup.aclose_all()
+
+    asyncio.run(_run())
 
 
 if __name__ == '__main__':

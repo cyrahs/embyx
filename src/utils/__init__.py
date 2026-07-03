@@ -4,9 +4,10 @@ from typing import Any
 from .avid import get_avid, get_brand
 from .type_check import has_video_suffix, is_video
 
-__all__ = ['clouddrive', 'freshrss', 'get_avid', 'get_brand', 'has_video_suffix', 'is_video', 'magnet', 'translator', 'web']
+__all__ = ['cleanup', 'clouddrive', 'freshrss', 'get_avid', 'get_brand', 'has_video_suffix', 'is_video', 'magnet', 'translator', 'web']
 
 _LAZY_EXPORTS = {
+    'cleanup': ('src.utils.cleanup', None),
     'clouddrive': ('src.utils.clouddrive.clouddrive', 'clouddrive'),
     'freshrss': ('src.utils.freshrss', None),
     'magnet': ('src.utils.magnet', None),
