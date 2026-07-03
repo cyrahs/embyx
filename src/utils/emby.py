@@ -27,28 +27,34 @@ class Item(BaseModel):
 
 
 cfg = config.emby
-headers = {'X-Emby-Token': cfg.api_key}
-client = httpx.AsyncClient(headers=headers)
+_client: httpx.AsyncClient | None = None
 avid_id = {}
+
+
+def _get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(headers={'X-Emby-Token': cfg.api_key})
+    return _client
 
 
 async def get_item_playbackinfo(item_id: str) -> dict:
     url = f'{cfg.url}/Items/{item_id}/PlaybackInfo'
-    res = await client.get(url)
+    res = await _get_client().get(url)
     res.raise_for_status()
     return res.json()
 
 
 async def get_item_info(item_id: str) -> dict:
     url = f'{cfg.url}/Users/{cfg.user_id}/Items/{item_id}'
-    res = await client.get(url)
+    res = await _get_client().get(url)
     res.raise_for_status()
     return res.json()
 
 
 async def mark_unplayed(item_id: str) -> None:
     url = f'{cfg.url}/Users/{cfg.user_id}/PlayedItems/{item_id}'
-    res = await client.delete(url)
+    res = await _get_client().delete(url)
     res.raise_for_status()
 
 
@@ -66,14 +72,14 @@ async def get_items(item_type: str | None = None, ids: list[str] | None = None) 
     }
     if ids:
         params['Ids'] = ','.join(ids)
-    res = await client.get(url, params=params)
+    res = await _get_client().get(url, params=params)
     res.raise_for_status()
     return res.json()['Items']
 
 
 async def get_image(item_id: str, route: str) -> bytes:
     url = f'{cfg.url}/Items/{item_id}/Images/{route}'
-    res = await client.get(url)
+    res = await _get_client().get(url)
     res.raise_for_status()
     return res.content
 
@@ -84,7 +90,7 @@ async def list_playlist(playlist: str) -> list[dict]:
         msg = f'Playlist not found: {playlist}'
         raise ValueError(msg)
     url = f'{cfg.url}/Playlists/{name_id[playlist]}/Items'
-    res = await client.get(url)
+    res = await _get_client().get(url)
     res.raise_for_status()
     return res.json()['Items']
 
@@ -95,7 +101,7 @@ async def playlist_add(playlist: str, item_id_list: list[str]) -> None:
     data = {
         'Ids': ','.join(item_id_list),
     }
-    res = await client.post(url, json=data)
+    res = await _get_client().post(url, json=data)
     res.raise_for_status()
 
 
@@ -108,7 +114,7 @@ async def playlist_remove(playlist: str, playlist_item_id_list: list[str]) -> No
     data = {
         'EntryIds': ','.join(playlist_item_id_list),
     }
-    res = await client.delete(url, params=data)
+    res = await _get_client().delete(url, params=data)
     res.raise_for_status()
 
 
@@ -148,7 +154,7 @@ async def collection_list(collection: str) -> list[dict]:
         'UserId': cfg.user_id,
         'Fields': 'DateCreated',
     }
-    res = await client.get(url, params=params)
+    res = await _get_client().get(url, params=params)
     res.raise_for_status()
     return res.json()['Items']
 
@@ -159,7 +165,7 @@ async def collection_add(collection: str, item_id_list: list[str]) -> None:
     data = {
         'Ids': ','.join(item_id_list),
     }
-    res = await client.post(url, json=data)
+    res = await _get_client().post(url, json=data)
     res.raise_for_status()
 
 
@@ -185,7 +191,7 @@ async def refresh(item_id: str) -> None:
     params = {
         'Recursive': True,
     }
-    res = await client.post(url, params=params)
+    res = await _get_client().post(url, params=params)
     res.raise_for_status()
 
 
@@ -204,7 +210,7 @@ async def get_the_latest_update() -> datetime:
         'SortOrder': 'Descending',
         'Recursive': True,
     }
-    res = await client.get(url, params=params)
+    res = await _get_client().get(url, params=params)
     res.raise_for_status()
     return datetime.fromisoformat(res.json()['Items'][0]['DateCreated']).astimezone(UTC)
 

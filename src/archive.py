@@ -157,7 +157,7 @@ def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901, PLR0912, PLR0915
                 continue
             folder_avid = remove_00(folder_avid)
             folder_avid_dst_dir = find_dst_dir(folder_avid, dst_dir)
-            if not folder_avid_dst_dir.exists():
+            if folder_avid_dst_dir is None or not folder_avid_dst_dir.exists():
                 continue
             for f in folder_avid_dst_dir.iterdir():
                 if not is_video(f) or not f.name.startswith(folder_avid):
@@ -238,9 +238,9 @@ def clear_dirname(root: Path) -> None:
             folder.rename(new_path)
 
 
-def find_dst_dir(avid: str, dst_dir: Path) -> Path:
+def find_dst_dir(avid: str, dst_dir: Path) -> Path | None:
     brand = get_brand(avid)
-    if not (brand := get_brand(avid)):
+    if not brand:
         log.warning('failed to get brand for %s, skipping find_dst', avid)
         return None
     # check if in brand_mapping
@@ -256,7 +256,10 @@ def find_video_dst(video: Path, dst_dir: Path) -> Path | None:
     if not (avid := get_avid(video.name)):
         log.warning('failed to get avid for %s, skipping find_video_dst', _safe_relative(video, cfg.src_dir))
         return None
-    return find_dst_dir(avid, dst_dir) / video.name
+    video_dst_dir = find_dst_dir(avid, dst_dir)
+    if video_dst_dir is None:
+        return None
+    return video_dst_dir / video.name
 
 
 def archive(src_dir: Path, dst_dir: Path) -> None:

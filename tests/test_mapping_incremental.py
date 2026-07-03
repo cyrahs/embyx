@@ -64,6 +64,23 @@ def test_map_strm_path_builds_destination(tmp_path: Path, monkeypatch: pytest.Mo
     assert dst_path == dst_dir / 'a' / 'ABC-123' / 'ABC-123.strm'
 
 
+def test_map_strm_path_preserves_symlink_source_location(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mapping = import_mapping(monkeypatch, tmp_path)
+    src_dir = tmp_path / 'src'
+    dst_dir = tmp_path / 'dst'
+    src_path = src_dir / 'a' / 'ABC-123.strm'
+    target_path = tmp_path / 'external' / 'ABC-123.strm'
+    target_path.parent.mkdir(parents=True)
+    target_path.write_text('data', encoding='utf-8')
+    src_path.parent.mkdir(parents=True)
+    src_path.symlink_to(target_path)
+    monkeypatch.setattr(mapping, 'get_avid', lambda _: 'ABC-123')
+
+    dst_path = mapping.map_strm_path(src_path, src_dir, dst_dir)
+
+    assert dst_path == dst_dir / 'a' / 'ABC-123' / 'ABC-123.strm'
+
+
 def test_update_one_copies_and_skips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     mapping = import_mapping(monkeypatch, tmp_path)
     src_dir = tmp_path / 'src'
@@ -103,3 +120,29 @@ def test_delete_one_removes_file_and_empty_dirs(tmp_path: Path, monkeypatch: pyt
     assert not (dst_dir / 'a' / 'ABC-123').exists()
     assert not (dst_dir / 'a').exists()
     assert mapping.counter.files_deleted == 1
+
+
+def test_main_creates_missing_destination_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mapping = import_mapping(monkeypatch, tmp_path)
+    src_dir = tmp_path / 'src'
+    dst_dir = tmp_path / 'dst'
+    src_dir.mkdir()
+    mapping.cfg.src_dir = src_dir
+    mapping.cfg.dst_dir = dst_dir
+
+    mapping.main()
+
+    assert dst_dir.is_dir()
+
+
+def test_main_raises_if_destination_exists_as_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mapping = import_mapping(monkeypatch, tmp_path)
+    src_dir = tmp_path / 'src'
+    dst_dir = tmp_path / 'dst'
+    src_dir.mkdir()
+    dst_dir.write_text('not a directory', encoding='utf-8')
+    mapping.cfg.src_dir = src_dir
+    mapping.cfg.dst_dir = dst_dir
+
+    with pytest.raises(ValueError, match='is not a directory'):
+        mapping.main()

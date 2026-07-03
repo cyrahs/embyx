@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import colorlog
 from tqdm import tqdm
 
 from .config import config
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 NOTICE = 25
 logging.addLevelName(NOTICE, 'NOTICE')
@@ -44,28 +47,63 @@ class TqdmLoggingHandler(logging.Handler):
         self.flush()
 
 
-console_handler = TqdmLoggingHandler()
-log_colors = colorlog.default_log_colors
-log_colors['NOTICE'] = 'cyan'
-console_formatter = colorlog.ColoredFormatter(
-    '%(log_color)s[%(name)s]%(message)s',
-    log_colors=log_colors,
-)
-console_handler.setFormatter(console_formatter)
-root = logging.getLogger()
-root.addHandler(console_handler)
 app_logger = logging.getLogger('embyx')
 
+_CONSOLE_HANDLER_MARKER = '_embyx_console_handler'
+_FILE_HANDLER_MARKER = '_embyx_file_handler'
+_CONFIGURED = False
 
-log_dir = config.log_dir
-log_dir.mkdir(exist_ok=True)
-timestamp = datetime.now().astimezone().strftime('%Y%m%d')
-file_handler = logging.FileHandler(log_dir / f'{timestamp}.log')
-file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(file_formatter)
-root.addHandler(file_handler)
 
-app_logger.setLevel(logging.INFO)
+def _has_handler(root: logging.Logger, marker: str) -> bool:
+    return any(getattr(handler, marker, False) for handler in root.handlers)
+
+
+def _build_console_handler() -> logging.Handler:
+    console_handler = TqdmLoggingHandler()
+    log_colors = colorlog.default_log_colors.copy()
+    log_colors['NOTICE'] = 'cyan'
+    console_formatter = colorlog.ColoredFormatter(
+        '%(log_color)s[%(name)s]%(message)s',
+        log_colors=log_colors,
+    )
+    console_handler.setFormatter(console_formatter)
+    setattr(console_handler, _CONSOLE_HANDLER_MARKER, True)
+    return console_handler
+
+
+def _build_file_handler(log_dir: Path) -> logging.Handler | None:
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().astimezone().strftime('%Y%m%d')
+        file_handler = logging.FileHandler(log_dir / f'{timestamp}.log', encoding='utf-8')
+    except OSError as exc:
+        app_logger.warning('File logging disabled: %s', exc)
+        return None
+
+    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_formatter)
+    setattr(file_handler, _FILE_HANDLER_MARKER, True)
+    return file_handler
+
+
+def configure() -> None:
+    global _CONFIGURED
+    if _CONFIGURED:
+        return
+
+    root = logging.getLogger()
+    if not _has_handler(root, _CONSOLE_HANDLER_MARKER):
+        root.addHandler(_build_console_handler())
+
+    file_handler_ready = _has_handler(root, _FILE_HANDLER_MARKER)
+    if not file_handler_ready:
+        file_handler = _build_file_handler(config.log_dir)
+        if file_handler is not None:
+            root.addHandler(file_handler)
+            file_handler_ready = True
+
+    app_logger.setLevel(logging.INFO)
+    _CONFIGURED = file_handler_ready
 
 
 def get(name: str) -> MyLogger:
@@ -78,4 +116,5 @@ def get(name: str) -> MyLogger:
         MyLogger: logger instance
 
     """
-    return app_logger.getChild(name)  # type: ignore  # noqa: PGH003
+    configure()
+    return cast('MyLogger', app_logger.getChild(name))

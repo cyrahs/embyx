@@ -15,16 +15,28 @@ from src.utils.avid import get_avid
 log = logger.get('magnet')
 
 # Create separate magnet log handler
-magnet_log_file = config.log_dir / 'magnets.log'
+_MAGNET_HANDLER_MARKER = '_embyx_magnet_file_handler'
 
-magnet_logger = logging.getLogger('magnet_chosen')
-magnet_file_handler = logging.FileHandler(magnet_log_file)
-magnet_formatter = logging.Formatter('%(message)s')
-magnet_file_handler.setFormatter(magnet_formatter)
-magnet_logger.addHandler(magnet_file_handler)
-magnet_logger.setLevel(logging.INFO)
-# Prevent duplicate logging to parent handlers
-magnet_logger.propagate = False
+
+def _get_magnet_logger() -> logging.Logger:
+    magnet_logger = logging.getLogger('magnet_chosen')
+    magnet_logger.setLevel(logging.INFO)
+    magnet_logger.propagate = False
+    if any(getattr(handler, _MAGNET_HANDLER_MARKER, False) for handler in magnet_logger.handlers):
+        return magnet_logger
+
+    try:
+        config.log_dir.mkdir(parents=True, exist_ok=True)
+        magnet_file_handler = logging.FileHandler(config.log_dir / 'magnets.log', encoding='utf-8')
+    except OSError as exc:
+        log.warning('Magnet file logging disabled: %s', exc)
+        return magnet_logger
+
+    magnet_formatter = logging.Formatter('%(message)s')
+    magnet_file_handler.setFormatter(magnet_formatter)
+    setattr(magnet_file_handler, _MAGNET_HANDLER_MARKER, True)
+    magnet_logger.addHandler(magnet_file_handler)
+    return magnet_logger
 
 
 class sukebei:  # noqa: N801
@@ -96,7 +108,7 @@ class sukebei:  # noqa: N801
 
         # Log the chosen magnet to separate magnet log file
         chosen_magnet = result[choosed]['magnet']
-        magnet_logger.info(chosen_magnet)
+        _get_magnet_logger().info(chosen_magnet)
 
         return chosen_magnet
 

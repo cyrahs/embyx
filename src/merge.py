@@ -11,11 +11,21 @@ from src.utils import get_avid
 log = logger.get('merge')
 
 MIN_ARGS = 3
+CD_INDEX_RE = re.compile(r'-cd(\d+)\.strm$', re.IGNORECASE)
+
+
+def _cd_index(path: Path) -> int:
+    match = CD_INDEX_RE.search(path.name)
+    if match is None:
+        msg = f'{path} is not a CD strm file'
+        raise ValueError(msg)
+    return int(match.group(1))
+
 
 def get_cds(search_dir: Path, filter_pattern: str) -> dict[str, list[Path]]:
     cds: list[Path] = []
     for root, _, files in search_dir.walk():
-        cds += [root / f for f in files if re.search(r'-cd\d+\.strm', f)]
+        cds += [root / f for f in files if CD_INDEX_RE.search(f)]
     avid_cds: dict[str, list[Path]] = {}
     for cd in cds:
         avid = get_avid(cd.name)
@@ -25,13 +35,17 @@ def get_cds(search_dir: Path, filter_pattern: str) -> dict[str, list[Path]]:
             avid_cds[avid] = []
         avid_cds[avid].append(cd)
     # sort cds and verify range
-    for avid, cds in avid_cds.items():
-        cds.sort(key=lambda x: int(re.search(r'-cd(\d+)\.strm', x.name).group(1)))
-        indexes = [int(re.search(r'-cd(\d+)\.strm', cd.name).group(1)) for cd in cds]
-        if sorted(indexes) != list(range(min(indexes), max(indexes) + 1)):
+    invalid_avids = []
+    for avid, cd_paths in avid_cds.items():
+        cd_paths.sort(key=_cd_index)
+        indexes = [_cd_index(cd) for cd in cd_paths]
+        if sorted(indexes) != list(range(1, max(indexes) + 1)):
             log.error('%s has missing CD, skip', avid)
-            del avid_cds[avid]
+            invalid_avids.append(avid)
+    for avid in invalid_avids:
+        del avid_cds[avid]
     return avid_cds
+
 
 def merge(cds: list[Path], dst: Path) -> bool:
     if dst.exists():
@@ -68,6 +82,7 @@ def merge(cds: list[Path], dst: Path) -> bool:
     finally:
         tmp_dir_ctx.cleanup()
     return True
+
 
 def main(search_dir: Path, dst_dir: Path, filter_pattern: str) -> None:
     search_path = config.mapping.src_dir / search_dir

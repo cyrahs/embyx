@@ -35,9 +35,16 @@ goHjgabjga7kuK3lh7rjgZcKICAgIOi+k+WHuu+8mgogICAg5paw5Lq65Ye66YGT77yB5riF57qv
 
 cfg = config.translator
 
-client = AsyncOpenAI(api_key=cfg.openai_api_key, base_url=cfg.openai_base_url)
+_client: AsyncOpenAI | None = None
 
 prompt = base64.b64decode(PROMPT_BASE64).decode('utf-8')
+
+
+def _get_client() -> AsyncOpenAI:
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(api_key=cfg.openai_api_key, base_url=cfg.openai_base_url)
+    return _client
 
 
 def check_valid(text: str) -> bool:
@@ -56,7 +63,7 @@ async def chat(model: str, prompt: str, text: str) -> str:
         {'role': 'user', 'content': text},
     ]
     temperature = 0
-    completion = await client.chat.completions.create(
+    completion = await _get_client().chat.completions.create(
         model=model,
         messages=message,
         temperature=temperature,

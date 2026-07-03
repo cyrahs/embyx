@@ -10,11 +10,11 @@ from src.utils.emby import collection_add, get_items
 
 file_path = Path('./playlist.json')
 save_path = Path('./not_found.json')
-collection_avid = json.load(file_path.open())
 log = logger.get('playlist_move')
 
 
 async def main() -> None:
+    collection_avid = json.loads(file_path.read_text(encoding='utf-8'))
     movies = await get_items('Movie')
     avid_item = {}
     for movie in movies:
@@ -40,6 +40,7 @@ async def main() -> None:
         async with aiofiles.open(save_path, 'w') as f:
             await f.write(json.dumps(not_found, indent=2))
         await collection_add(collection, items)
+
 
 if __name__ == '__main__':
     asyncio.run(main())

@@ -26,12 +26,21 @@ def reset_counter() -> None:
     counter = Counter()
 
 
+def _relative_to_src(src: Path, src_dir: Path) -> Path | None:
+    try:
+        return src.relative_to(src_dir)
+    except ValueError:
+        try:
+            return src.absolute().relative_to(src_dir.absolute())
+        except ValueError:
+            return None
+
+
 def map_strm_path(src: Path, src_dir: Path, dst_dir: Path) -> Path | None:
     if src.suffix.lower() != '.strm':
         return None
-    try:
-        rel_path = src.resolve().relative_to(src_dir.resolve())
-    except ValueError:
+    rel_path = _relative_to_src(src, src_dir)
+    if rel_path is None:
         return None
     avid = get_avid(src.name)
     if not avid:
@@ -106,27 +115,7 @@ def update(src_dir: Path, dst_dir: Path) -> None:
     to dst_dir with structure xx/yy/zz/zz.strm
     """
     for src in src_dir.glob('**/*.strm'):
-        # Get relative path from source directory
-        rel_path = src.relative_to(src_dir)
-        avid = get_avid(src.name)
-        if not avid:
-            log.warning('failed to get avid for %s, skipping', src.relative_to(src_dir))
-            continue
-        # Create new path with structure xx/yy/zz/zz.strm
-        dst = dst_dir / rel_path.parent / avid / src.name
-
-        # Create directory if it doesn't exist
-        dst.parent.mkdir(parents=True, exist_ok=True)
-
-        # Check if file needs to be updated based on modification time
-        if dst.exists() and src.stat().st_mtime <= dst.stat().st_mtime:
-            counter.files_skipped += 1
-            log.debug('skipping %s (unchanged)', src.relative_to(src_dir))
-        else:
-            # Copy the file
-            shutil.copy2(src, dst)  # copy2 preserves metadata
-            counter.files_updated += 1
-            log.info('updated %s -> %s', src.relative_to(src_dir), dst.relative_to(dst_dir))
+        update_one(src, src_dir, dst_dir)
 
 
 def delete(dst_dir: Path, src_dir: Path) -> None:
@@ -161,7 +150,6 @@ def delete_empty_dirs(dst_dir: Path) -> None:
         log.info('deleted empty directory: %s', empty_dir.relative_to(dst_dir))
 
 
-
 def main() -> None:
     """
     Map .strm files from src_dir with structure xx/yy/zz.strm
@@ -180,14 +168,14 @@ def main() -> None:
     dst_dir = cfg.dst_dir
     log.info('starting mapping from %s to %s', src_dir, dst_dir)
     # Argument validation
-    if not dst_dir.is_dir():
-        msg = f'{dst_dir} is not a directory'
-        raise ValueError(msg)
     if not src_dir.is_dir():
         msg = f'{src_dir} is not a directory'
         raise ValueError(msg)
     if not dst_dir.exists():
         dst_dir.mkdir(parents=True)
+    elif not dst_dir.is_dir():
+        msg = f'{dst_dir} is not a directory'
+        raise ValueError(msg)
 
     update(src_dir, dst_dir)
     delete(dst_dir, src_dir)

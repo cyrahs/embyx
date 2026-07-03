@@ -412,6 +412,25 @@ def test_flatten_empty_folder_without_avid_left_intact(mod: ModuleType, tmp_path
     mod.time.sleep.assert_not_called()
 
 
+def test_flatten_empty_folder_with_unknown_brand_left_intact(
+    mod: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    folder = root / "N1234"
+    folder.mkdir()
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    monkeypatch.setattr(mod, "get_avid", lambda _name: "N1234")
+    monkeypatch.setattr(mod, "get_brand", lambda _avid: None)
+
+    mod.flatten(root, dst)
+
+    assert folder.exists()
+
+
 def test_flatten_deletes_folder_when_no_videos_and_dst_has_matching_video(
     mod: ModuleType,
     tmp_path: Path,
@@ -826,22 +845,15 @@ def test_find_video_dst_returns_none_if_avid_missing(mod: ModuleType, tmp_path: 
     assert mod.find_video_dst(f, tmp_path) is None
 
 
-def test_find_video_dst_typeerror_if_find_dst_dir_returns_none(
+def test_find_video_dst_returns_none_if_find_dst_dir_returns_none(
     mod: ModuleType,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """
-    In the source, find_video_dst does not handle find_dst_dir(None):
-        return find_dst_dir(avid, dst_dir) / video.name
-    If find_dst_dir returns None, a TypeError is raised.
-    This covers that potential bug branch.
-    """
     f = _write_bytes(tmp_path / "ABP-123.mp4", 10)
     monkeypatch.setattr(mod, "get_brand", lambda _avid: "")  # Force find_dst_dir to return None.
 
-    with pytest.raises(TypeError):
-        mod.find_video_dst(f, tmp_path)
+    assert mod.find_video_dst(f, tmp_path) is None
 
 
 def test_find_video_dst_normal(mod: ModuleType, tmp_path: Path) -> None:

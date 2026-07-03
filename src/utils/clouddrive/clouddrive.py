@@ -1,4 +1,5 @@
 import errno
+from typing import Any
 
 import grpc
 from google.protobuf import empty_pb2
@@ -187,4 +188,26 @@ class CloudDriveClient:
         self.stub.ClearOfflineFiles(request, metadata=metadata)
 
 
-clouddrive = CloudDriveClient()
+_client: CloudDriveClient | None = None
+
+
+def get_client() -> CloudDriveClient:
+    global _client
+    if _client is None:
+        _client = CloudDriveClient()
+    return _client
+
+
+class CloudDriveProxy:
+    def __getattr__(self, name: str) -> Any:
+        return getattr(get_client(), name)
+
+    def close(self) -> None:
+        global _client
+        if _client is None:
+            return
+        _client.close()
+        _client = None
+
+
+clouddrive = CloudDriveProxy()
