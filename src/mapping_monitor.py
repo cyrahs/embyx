@@ -55,6 +55,26 @@ def run_mapping() -> bool:
     return True
 
 
+def should_clear_trigger(*, success: bool, run_started: float, last_after: float) -> bool:
+    return success and last_after <= run_started
+
+
+def clear_trigger_if_stable(
+    trigger_event: threading.Event,
+    last_event_time: dict[str, float],
+    lock: threading.Lock,
+    *,
+    success: bool,
+    run_started: float,
+) -> bool:
+    with lock:
+        last_after = last_event_time['value']
+        if not should_clear_trigger(success=success, run_started=run_started, last_after=last_after):
+            return False
+        trigger_event.clear()
+        return True
+
+
 def main() -> None:
     log.info('Starting mapping monitor')
     src_dir = mapping.cfg.src_dir
@@ -81,12 +101,19 @@ def main() -> None:
                     continue
                 run_started = time.monotonic()
                 log.info('Detected changes in %s, running mapping', src_dir)
-                run_mapping()
-                with lock:
-                    last_after = last_event_time['value']
-                if last_after > run_started:
+                success = run_mapping()
+                clear_trigger = clear_trigger_if_stable(
+                    trigger_event,
+                    last_event_time,
+                    lock,
+                    success=success,
+                    run_started=run_started,
+                )
+                if not clear_trigger:
+                    if not success:
+                        log.info('Retrying mapping in %d seconds', DEBOUNCE_SECONDS)
+                        time.sleep(DEBOUNCE_SECONDS)
                     continue
-                trigger_event.clear()
                 break
     except KeyboardInterrupt:
         log.info('Mapping monitor interrupted, exiting')

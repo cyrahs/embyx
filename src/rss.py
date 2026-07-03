@@ -155,6 +155,13 @@ async def get_magnet(avid: str, items: list[dict], avid_magnet: dict[str, str]) 
             log.exception('Failed to mark %d items as read', len(item_ids))
 
 
+async def get_magnet_safely(avid: str, items: list[dict], avid_magnet: dict[str, str]) -> None:
+    try:
+        await get_magnet(avid, items, avid_magnet)
+    except Exception:
+        log.exception('Failed to get magnet for %s', avid)
+
+
 def refresh_finished_magnets() -> None:
     log.info('Start to refresh finished magnets')
     refresh_task_dir()
@@ -180,7 +187,7 @@ def refresh_finished_magnets() -> None:
         clear_finished_magnets()
 
 
-async def main(*, rank: bool = False) -> None:  # noqa: C901, PLR0912
+async def main(*, rank: bool = False) -> None:  # noqa: C901
     label = 'Rank' if rank else 'Actor'
     items = freshrss.get_items(label)
     log.info('Find %d items in %s', len(items), label)
@@ -216,26 +223,22 @@ async def main(*, rank: bool = False) -> None:  # noqa: C901, PLR0912
         return
     # get magnets
     avid_magnet = {}
-    tasks = [get_magnet(k, v, avid_magnet) for k, v in active_avid_item.items()]
-    try:
-        await tqdm_asyncio.gather(*tasks)
-    except (Exception, KeyboardInterrupt):
-        log.exception('Failed to get magnets')
-    finally:
-        magnet_lines = list(avid_magnet.values())
-        log_lines = [f'Found {len(magnet_lines)} magnets']
-        log_lines.extend(magnet_lines)
-        log.info('\n'.join(log_lines))
-        # store to txt
-        failed_avid = [i for i in active_avid_item if i not in avid_magnet]
-        if failed_avid:
-            log_lines = [f'Failed to get magnets for {len(failed_avid)} items:']
-            for i in failed_avid:
-                log_lines.append(f'{i}')
-            log.warning(' '.join(log_lines))
-            failure_time = time.time()
-            for avid in failed_avid:
-                cooldown[avid] = failure_time
+    tasks = [get_magnet_safely(k, v, avid_magnet) for k, v in active_avid_item.items()]
+    await tqdm_asyncio.gather(*tasks)
+    magnet_lines = list(avid_magnet.values())
+    log_lines = [f'Found {len(magnet_lines)} magnets']
+    log_lines.extend(magnet_lines)
+    log.info('\n'.join(log_lines))
+    # store to txt
+    failed_avid = [i for i in active_avid_item if i not in avid_magnet]
+    if failed_avid:
+        log_lines = [f'Failed to get magnets for {len(failed_avid)} items:']
+        for i in failed_avid:
+            log_lines.append(f'{i}')
+        log.warning(' '.join(log_lines))
+        failure_time = time.time()
+        for avid in failed_avid:
+            cooldown[avid] = failure_time
     # add magnets to 115
     add_magnets_and_read(avid_magnet, active_avid_item)
     refresh_finished_magnets()

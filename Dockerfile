@@ -25,7 +25,8 @@ COPY src/ src/
 COPY run.py ./
 
 # Compile application code to bytecode
-RUN python -m compileall src/ run.py
+RUN ./.venv/bin/python -m compileall src/ run.py
 
-# Default command runs your launcher, which invokes .venv/bin/python
-CMD ["python", "run.py"]
+# Run the launcher by default; command arguments can override CMD.
+ENTRYPOINT ["./.venv/bin/python", "run.py"]
+CMD ["rss"]

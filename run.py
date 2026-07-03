@@ -39,7 +39,7 @@ class MergeArgs(Tap):
     filter: str
 
     def configure(self) -> None:
-        self.add_argument('search_dir', type=Path, default='type/vr', help='search directory')
+        self.add_argument('search_dir', type=Path, help='search directory')
         self.add_argument('dst_dir', type=Path, help='destination directory')
         self.add_argument('-f', '--filter', type=str, default='', help='filter to merge')
 

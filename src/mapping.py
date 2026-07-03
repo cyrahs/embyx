@@ -1,3 +1,4 @@
+import filecmp
 import shutil
 from pathlib import Path
 
@@ -57,7 +58,10 @@ def update_one(src: Path, src_dir: Path, dst_dir: Path) -> None:
         log.warning('source file missing, skipping %s', src)
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
-    if dst.exists() and src.stat().st_mtime <= dst.stat().st_mtime:
+    if dst.exists() and not dst.is_file():
+        msg = f'{dst} exists and is not a file'
+        raise FileExistsError(msg)
+    if dst.exists() and src.stat().st_mtime <= dst.stat().st_mtime and filecmp.cmp(src, dst, shallow=False):
         counter.files_skipped += 1
         try:
             rel_src = src.relative_to(src_dir)
@@ -135,6 +139,8 @@ def delete_empty_dirs(dst_dir: Path) -> None:
     """
     Delete empty directories in dst_dir
     """
+    # Intentional cleanup: directories without descendant .strm files are removed
+    # as derived mapping output, even if non-.strm leftovers are still present.
     empty_dirs = [p for p in dst_dir.glob('**/*') if p.is_dir() and not any(p.glob('**/*.strm'))]
     if not empty_dirs:
         return

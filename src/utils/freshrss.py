@@ -5,6 +5,7 @@ from src.core import config
 
 _edit_token: str | None = None
 _client: httpx.Client | None = None
+FRESHRSS_RETRY_EXCEPTIONS = (httpx.HTTPError, httpx.RequestError, httpx.TimeoutException, KeyError, ValueError)
 
 
 def _get_proxy() -> str | None:
@@ -52,6 +53,12 @@ def _get_edit_token() -> str:
     return _edit_token
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type(FRESHRSS_RETRY_EXCEPTIONS),
+    reraise=True,
+)
 def get_items(label: str) -> list[dict]:
     """Get RSS items from a specific label."""
     params = {'xt': 'user/-/state/com.google/read'}
@@ -59,6 +66,7 @@ def get_items(label: str) -> list[dict]:
     while True:
         url = f'{config.freshrss.freshrss_url}/stream/contents/user/-/label/{label}'
         res = _get_client().get(url, headers=_get_headers(), params=params, timeout=10)
+        res.raise_for_status()
         content = res.json()
         items += content['items']
         if content.get('continuation'):
@@ -76,6 +84,7 @@ def get_items(label: str) -> list[dict]:
 )
 def read_items(item_ids: list[str]) -> None:
     """Mark multiple items as read in a single API call."""
+    global _edit_token
     if not item_ids:
         return
     body = {
@@ -85,4 +94,9 @@ def read_items(item_ids: list[str]) -> None:
     }
 
     res = _get_client().post(f'{config.freshrss.freshrss_url}/edit-tag', headers=_get_headers(), data=body, timeout=10)
-    res.raise_for_status()
+    try:
+        res.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in {401, 403}:
+            _edit_token = None
+        raise

@@ -384,6 +384,39 @@ def test_rename_noop_when_already_named(mod: ModuleType, tmp_path: Path) -> None
     mod.time.sleep.assert_not_called()
 
 
+def test_rename_raises_if_normalized_target_exists(mod: ModuleType, tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+
+    src = _write_bytes(root / "ABP-00123.mp4", 10)
+    target = root / "ABP-123.mp4"
+    target.mkdir()
+
+    with pytest.raises(FileExistsError):
+        mod.rename(root)
+
+    assert src.exists()
+    assert target.is_dir()
+
+
+def test_rename_preflights_multi_part_targets_before_renaming(mod: ModuleType, tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+
+    first = _write_bytes(root / "ABP-00123_a.mp4", 10)
+    second = _write_bytes(root / "ABP-00123_b.mp4", 10)
+    colliding_target = root / "ABP-123-cd2.mp4"
+    colliding_target.mkdir()
+
+    with pytest.raises(FileExistsError):
+        mod.rename(root)
+
+    assert first.exists()
+    assert second.exists()
+    assert not (root / "ABP-123-cd1.mp4").exists()
+    assert colliding_target.is_dir()
+
+
 # ---------------------------
 # flatten
 # ---------------------------

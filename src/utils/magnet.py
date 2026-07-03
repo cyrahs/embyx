@@ -113,10 +113,19 @@ class sukebei:  # noqa: N801
         if not result:
             return None
         # sort by filesize like 2.4 GiB
+        parsed_result = []
         for i in result:
-            i['size_int'] = humanfriendly.parse_size(i['size'])
+            try:
+                i['size_int'] = humanfriendly.parse_size(i['size'])
+            except humanfriendly.InvalidSize:
+                log.warning('Skipping result with invalid size %s for %s', i.get('size'), keyword)
+                continue
             i['magnet'] = i['magnet'].split('&')[0]
             i['magnet'] = i['magnet'] + f'&dn={keyword}'
+            parsed_result.append(i)
+        result = parsed_result
+        if not result:
+            return None
         result.sort(key=lambda x: x['size_int'], reverse=True)
         trusted = [x for x in result if x['type'] == 'trusted']
         choosed = result.index(trusted[0]) if trusted and trusted[0]['size_int'] >= result[0]['size_int'] * 0.8 else 0
@@ -160,7 +169,11 @@ class rss:  # noqa: N801
             a = row("td:nth-child(1) a[href^='magnet:']")
             r = a.attr("href")
             size = row("td:nth-child(2)").text().strip()
-            size_int = humanfriendly.parse_size(size)
+            try:
+                size_int = humanfriendly.parse_size(size)
+            except humanfriendly.InvalidSize:
+                log.warning('Skipping RSS magnet with invalid size %s for %s', size, avid)
+                continue
             # process info
             try:
                 r, name = r.split('&dn=')

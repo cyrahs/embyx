@@ -100,10 +100,9 @@ def configure() -> None:
         file_handler = _build_file_handler(config.log_dir)
         if file_handler is not None:
             root.addHandler(file_handler)
-            file_handler_ready = True
 
     app_logger.setLevel(logging.INFO)
-    _CONFIGURED = file_handler_ready
+    _CONFIGURED = True
 
 
 def get(name: str) -> MyLogger:

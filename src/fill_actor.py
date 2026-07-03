@@ -38,7 +38,7 @@ def find_exists_in_additional(avid: str) -> list[Path]:
         result += [p for p in avid_paths if re.match(avid + r'(?:-cd\d{1,2})?\..+', p.name)]
     return result
 
-async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912
+async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912, PLR0915
     if isinstance(actor_ids, str):
         actor_ids = [actor_ids]
     non_exists: set[str] = set()
@@ -51,7 +51,7 @@ async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912
         for r in res:
             r_clean = match.group(1) if (match := re.match(r'(.+)_\d{4}-\d{2}-\d{2}', r)) else r
             if not find_exists_in_actor(r_clean):
-                non_exists.add(r)
+                non_exists.add(r_clean)
     if not non_exists:
         log.info('All exists')
         return
@@ -72,8 +72,12 @@ async def main(actor_ids: list[str]) -> None:  # noqa: C901, PLR0912
         log.info('Input y to move to %s, other to skip', cfg.move_in_path)
         if input() == 'y':
             for i in move:
-                log.info('Moving %s to %s', i, cfg.move_in_path / i.name)
-                i.rename(cfg.move_in_path / i.name)
+                dst = cfg.move_in_path / i.name
+                if dst.exists():
+                    log.warning('%s exists, skipping move for %s', dst, i)
+                    continue
+                log.info('Moving %s to %s', i, dst)
+                i.rename(dst)
         else:
             log.warning('Skip move')
     # online

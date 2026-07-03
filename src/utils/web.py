@@ -4,6 +4,7 @@ import re
 import httpx
 import humanfriendly
 from pyquery import PyQuery
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from tqdm.asyncio import tqdm_asyncio
 
 from src.core import logger
@@ -37,17 +38,31 @@ class javbus:  # noqa: N801
         cls._client = None
 
     @classmethod
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((httpx.HTTPError, httpx.TimeoutException)),
+        reraise=True,
+    )
     async def scrape_one_page(cls, actor_id: str, page: int) -> list[str]:
         res = await cls._get_client().get(url=f'{cls.host}/star/{actor_id}/{page}')
+        res.raise_for_status()
         doc = PyQuery(res.text)
         videos = doc('a[class="movie-box"]')
         ids = [str(i.attr('href')).split('/')[-1].upper() for i in videos.items()]
         return list(set(ids))
 
     @classmethod
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((httpx.HTTPError, httpx.TimeoutException)),
+        reraise=True,
+    )
     async def get_total_page(cls, actor_id: str) -> int:
         url = f'{cls.host}/star/{actor_id}'
         res = await cls._get_client().get(url=url)
+        res.raise_for_status()
         doc = PyQuery(res.text)
         links = doc(f'a[href^="/star/{actor_id}/"]')
         if links:
@@ -63,6 +78,12 @@ class javbus:  # noqa: N801
         return [i for j in res for i in j]
 
     @classmethod
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((httpx.HTTPError, httpx.TimeoutException)),
+        reraise=True,
+    )
     async def get_magnets(cls, video_id: str) -> list[dict]:
         """
         Get magnet links with filesize for a video ID.
@@ -76,6 +97,7 @@ class javbus:  # noqa: N801
         """
         url = f'{cls.host}/{video_id}'
         res = await cls._get_client().get(url)
+        res.raise_for_status()
         content = res.text
 
         gid_match = re.search(r'var gid = (\d+);', content)
@@ -97,6 +119,7 @@ class javbus:  # noqa: N801
         }
 
         res = await cls._get_client().get(ajax_url, headers=headers)
+        res.raise_for_status()
         doc = PyQuery(res.text)
 
         results = []

@@ -114,6 +114,30 @@ def drop_duplicate_copies(folder: Path, videos: list[Path]) -> list[Path]:
     return [video for video in videos if video not in dropped_set]
 
 
+def _build_rename_plan(root: Path, avid: str, videos: list[Path]) -> list[tuple[Path, Path, str]]:
+    planned_renames: list[tuple[Path, Path, str]] = []
+    for i, video in enumerate(videos):
+        suffix = f'-cd{i + 1}{video.suffix}' if len(videos) > 1 else video.suffix
+        new_name = f'{avid}{suffix}'
+        if video.name == new_name:
+            log.warning('no change for %s, skipping', video.relative_to(root))
+            continue
+        planned_renames.append((video, root / new_name, new_name))
+    return planned_renames
+
+
+def _check_rename_targets(planned_renames: list[tuple[Path, Path, str]]) -> None:
+    planned_targets: set[Path] = set()
+    for _, target, _ in planned_renames:
+        if target in planned_targets:
+            msg = f'{target} planned more than once'
+            raise FileExistsError(msg)
+        if target.exists():
+            msg = f'{target} exists'
+            raise FileExistsError(msg)
+        planned_targets.add(target)
+
+
 def rename(root: Path) -> None:
     renamed_any = False
     if not root.is_dir():
@@ -127,14 +151,11 @@ def rename(root: Path) -> None:
         avids.setdefault(avid, set()).add(video)
     for avid, videos_set in avids.items():
         videos = sorted(videos_set, key=lambda x: x.name)
-        for i, video in enumerate(videos):
-            suffix = f'-cd{i + 1}{video.suffix}' if len(videos) > 1 else video.suffix
-            new_name = f'{avid}{suffix}'
-            if video.name == new_name:
-                log.warning('no change for %s, skipping', video.relative_to(root))
-                continue
+        planned_renames = _build_rename_plan(root, avid, videos)
+        _check_rename_targets(planned_renames)
+        for video, target, new_name in planned_renames:
             log.notice('%s\n -> %s', video.relative_to(root), new_name)
-            video.rename(root / new_name)
+            video.rename(target)
             renamed_any = True
     if renamed_any:
         log.info('Sleeping 5 seconds after renaming')
@@ -163,6 +184,8 @@ def flatten(root: Path, dst_dir: Path) -> None:  # noqa: C901, PLR0912, PLR0915
             for f in folder_avid_dst_dir.iterdir():
                 if not is_video(f) or not f.name.startswith(folder_avid):
                     continue
+                # Intentional cleanup: folders without a qualifying video are
+                # treated as disposable leftovers, usually ads or junk files.
                 log.warning('%s has no video and %s exists (%s), deleting', folder.name, folder_avid, f)
                 shutil.rmtree(folder)
                 break

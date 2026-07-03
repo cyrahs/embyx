@@ -6,6 +6,8 @@ from typing import Any
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Avid(BaseModel):
     get_id_exceptions: list[str]
@@ -74,8 +76,8 @@ class Config(BaseSettings):
     emby: Emby
     fill_actor: FillActor
     model_config = SettingsConfigDict(
-        toml_file='./config.toml',
-        env_file='.env',
+        toml_file=str(PROJECT_ROOT / 'config.toml'),
+        env_file=str(PROJECT_ROOT / '.env'),
         env_nested_delimiter='__',
         case_sensitive=False,
     )

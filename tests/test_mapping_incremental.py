@@ -1,4 +1,5 @@
 import importlib
+import os
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -101,6 +102,48 @@ def test_update_one_copies_and_skips(tmp_path: Path, monkeypatch: pytest.MonkeyP
     mapping.update_one(src_path, src_dir, dst_dir)
 
     assert mapping.counter.files_skipped == 1
+
+
+def test_update_one_copies_backdated_content_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mapping = import_mapping(monkeypatch, tmp_path)
+    src_dir = tmp_path / 'src'
+    dst_dir = tmp_path / 'dst'
+    src_path = src_dir / 'a' / 'ABC-123.strm'
+    dst_path = dst_dir / 'a' / 'ABC-123' / 'ABC-123.strm'
+    src_path.parent.mkdir(parents=True)
+    dst_path.parent.mkdir(parents=True)
+    src_path.write_text('new', encoding='utf-8')
+    dst_path.write_text('old', encoding='utf-8')
+    monkeypatch.setattr(mapping, 'get_avid', lambda _: 'ABC-123')
+    old_time = 1_000_000
+    newer_time = 2_000_000
+    src_path.touch()
+    dst_path.touch()
+    os.utime(src_path, (old_time, old_time))
+    os.utime(dst_path, (newer_time, newer_time))
+    mapping.reset_counter()
+
+    mapping.update_one(src_path, src_dir, dst_dir)
+
+    assert dst_path.read_text(encoding='utf-8') == 'new'
+    assert mapping.counter.files_updated == 1
+
+
+def test_update_one_raises_if_destination_is_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mapping = import_mapping(monkeypatch, tmp_path)
+    src_dir = tmp_path / 'src'
+    dst_dir = tmp_path / 'dst'
+    src_path = src_dir / 'a' / 'ABC-123.strm'
+    dst_path = dst_dir / 'a' / 'ABC-123' / 'ABC-123.strm'
+    src_path.parent.mkdir(parents=True)
+    dst_path.mkdir(parents=True)
+    src_path.write_text('data', encoding='utf-8')
+    monkeypatch.setattr(mapping, 'get_avid', lambda _: 'ABC-123')
+
+    with pytest.raises(FileExistsError):
+        mapping.update_one(src_path, src_dir, dst_dir)
+
+    assert not (dst_path / 'ABC-123.strm').exists()
 
 
 def test_delete_one_removes_file_and_empty_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

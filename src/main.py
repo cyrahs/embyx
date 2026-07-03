@@ -1,10 +1,7 @@
 import asyncio
 
 from src import archive, mapping, rss
-from src.core import logger
 from src.utils.cleanup import aclose_all
-
-log = logger.get('main')
 
 
 async def main() -> None:

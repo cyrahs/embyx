@@ -19,3 +19,5 @@ jobs:
         run: uv sync --locked
       - name: Run tests
         run: ./.venv/bin/python -m pytest
+      - name: Run lint
+        run: ./.venv/bin/python -m ruff check .

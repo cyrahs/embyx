@@ -59,4 +59,4 @@ indent-style = 'space'
 line-ending = 'lf'
 
 [dependency-groups]
-dev = ["pytest-asyncio>=1.3.0", "ruff>=0.14.11"]
+dev = ["pytest>=9.0.2", "pytest-asyncio>=1.3.0", "ruff>=0.14.11"]

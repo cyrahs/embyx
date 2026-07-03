@@ -36,9 +36,11 @@ class NfoOld:
             self.root = self.tree.getroot()
             # load elements
             date_elem = self.root.find('premiered')
-            self.date: str | None = date_elem.text if date_elem else None
-            duration_elem = self.root.find('runtime') or self.root.find('duration')
-            duration_text = duration_elem.text if duration_elem else None
+            self.date: str | None = date_elem.text if date_elem is not None else None
+            duration_elem = self.root.find('runtime')
+            if duration_elem is None:
+                duration_elem = self.root.find('duration')
+            duration_text = duration_elem.text if duration_elem is not None else None
             self.duration: int | None = int(duration_text) if duration_text else None
         except Exception:
             log.exception('Failed to init Nfo %s', self.path)

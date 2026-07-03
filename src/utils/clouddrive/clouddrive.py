@@ -8,6 +8,8 @@ from src.core import config
 
 from . import clouddrive_pb2, clouddrive_pb2_grpc
 
+GRPC_TIMEOUT_SECONDS = 30.0
+
 
 class CloudDriveClient:
     def __init__(self) -> None:
@@ -33,7 +35,7 @@ class CloudDriveClient:
         Returns:
             CloudDriveSystemInfo: 系统信息
         """
-        return self.stub.GetSystemInfo(empty_pb2.Empty())
+        return self.stub.GetSystemInfo(empty_pb2.Empty(), timeout=GRPC_TIMEOUT_SECONDS)
 
     def get_sub_files(self, path: str, *, force_refresh: bool = False) -> list[clouddrive_pb2.CloudDriveFile]:
         """列出目录中的文件
@@ -54,7 +56,7 @@ class CloudDriveClient:
         files = []
 
         try:
-            for response in self.stub.GetSubFiles(request, metadata=metadata):
+            for response in self.stub.GetSubFiles(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS):
                 files.extend(response.subFiles)
         except grpc.RpcError as e:
             if getattr(e, 'code', None) and e.code() == grpc.StatusCode.NOT_FOUND:
@@ -85,7 +87,7 @@ class CloudDriveClient:
         )
 
         metadata = self._create_authorized_metadata()
-        return self.stub.CreateFolder(request, metadata=metadata)
+        return self.stub.CreateFolder(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS)
 
     def delete_file(self, file_path: str) -> clouddrive_pb2.FileOperationResult:
         """删除文件或文件夹
@@ -98,7 +100,7 @@ class CloudDriveClient:
         """
         request = clouddrive_pb2.FileRequest(path=file_path)
         metadata = self._create_authorized_metadata()
-        return self.stub.DeleteFile(request, metadata=metadata)
+        return self.stub.DeleteFile(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS)
 
     def rename_file(self, file_path: str, new_name: str) -> clouddrive_pb2.FileOperationResult:
         """重命名文件
@@ -116,7 +118,7 @@ class CloudDriveClient:
         )
 
         metadata = self._create_authorized_metadata()
-        return self.stub.RenameFile(request, metadata=metadata)
+        return self.stub.RenameFile(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS)
 
     def move_file(self, source_paths: list[str], dest_path: str, conflict_policy: int = 0) -> clouddrive_pb2.FileOperationResult:
         """移动文件到目标位置
@@ -136,7 +138,7 @@ class CloudDriveClient:
         )
 
         metadata = self._create_authorized_metadata()
-        return self.stub.MoveFile(request, metadata=metadata)
+        return self.stub.MoveFile(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS)
 
     def add_offline_file(self, urls: str | list[str], dst_dir: str) -> clouddrive_pb2.FileOperationResult:
         """添加离线文件
@@ -153,7 +155,7 @@ class CloudDriveClient:
             checkFolderAfterSecs=0,
         )
         metadata = self._create_authorized_metadata()
-        return self.stub.AddOfflineFiles(request, metadata=metadata)
+        return self.stub.AddOfflineFiles(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS)
 
     def list_finished_offline_files_by_path(self, path: str) -> clouddrive_pb2.OfflineFileListResult:
         """列出指定路径下的离线文件
@@ -164,7 +166,7 @@ class CloudDriveClient:
         """
         request = clouddrive_pb2.FileRequest(path=path)
         metadata = self._create_authorized_metadata()
-        result = self.stub.ListOfflineFilesByPath(request, metadata=metadata)
+        result = self.stub.ListOfflineFilesByPath(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS)
 
         finished = [f for f in result.offlineFiles if f.status == clouddrive_pb2.OfflineFileStatus.OFFLINE_FINISHED]
         return clouddrive_pb2.OfflineFileListResult(
@@ -185,7 +187,7 @@ class CloudDriveClient:
             path=path,
         )
         metadata = self._create_authorized_metadata()
-        self.stub.ClearOfflineFiles(request, metadata=metadata)
+        self.stub.ClearOfflineFiles(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS)
 
 
 _client: CloudDriveClient | None = None
