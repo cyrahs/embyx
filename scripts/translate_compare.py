@@ -45,14 +45,10 @@ PROMPT = base64.b64decode(PROMPT_BASE64).decode('utf-8')
 
 # Models to test
 MODELS = [
-    'google/gemini-2.5-flash',
-    'google/gemma-3-27b-it',
-    'deepseek/deepseek-chat-v3.1',
-    'x-ai/grok-4-fast',
-    'meta-llama/llama-4-8b-instruct',
-    'openai/gpt-5-nano',
-    'meta-llama/llama-4-maverick',
-    'qwen/qwen3-32b',
+    'deepseek/deepseek-v4-flash',
+    'deepseek/deepseek-v3.2',
+    'openai/gpt-5.6-luna',
+    'anthropic/claude-sonnet-5',
 ]
 
 
@@ -109,22 +105,25 @@ async def translate_text(client: AsyncOpenAI, model: str, text: str) -> str:
         return f'Error: {e!s}'
 
 
-def write_comparison(output_file: Path, header: list[str], results: list[dict[str, str]]) -> None:
-    with output_file.open('w', newline='', encoding='utf-8') as f:
+def initialize_output(output_file: Path, header: list[str]) -> None:
+    with output_file.open('w', newline='', encoding='utf-8-sig') as f:
         writer = csv.DictWriter(f, fieldnames=header)
         writer.writeheader()
-        writer.writerows(results)
-
-    log.info('Comparison saved to %s', output_file.absolute())
 
 
-async def main() -> tuple[list[str], list[dict[str, str]], Path] | None:
+def append_result(output_file: Path, header: list[str], row: dict[str, str]) -> None:
+    with output_file.open('a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=header)
+        writer.writerow(row)
+
+
+async def main() -> Path | None:
     cfg = config.translator
     # Use config from codebase
     client = AsyncOpenAI(api_key=cfg.openai_api_key, base_url=cfg.openai_base_url)
 
     try:
-        nfo_dir = Path('/root/media/embyx/local/actor/clt')
+        nfo_dir = config.translate.nfo_dir
         if not nfo_dir.exists():
             log.error('Directory %s does not exist.', nfo_dir)
             return None
@@ -133,34 +132,24 @@ async def main() -> tuple[list[str], list[dict[str, str]], Path] | None:
         titles = await get_japanese_titles(nfo_dir, limit=100)
         log.info('Loaded %d titles.', len(titles))
 
-        results = []
-
-        # Header
         header = ['Filename', 'Original Title', *MODELS]
+        output_file = Path('translation_comparison.csv')
 
-        # Process translations
         log.info('Translating...')
+        await asyncio.to_thread(initialize_output, output_file, header)
         for filename, jp_title in tqdm(titles):
             row = {'Filename': filename, 'Original Title': jp_title}
-
-            # Parallelize translation for each model? No, let's keep it simple sequential per title or parallel per title
-            # Let's run all models for this title in parallel
             tasks = [translate_text(client, model, jp_title) for model in MODELS]
             translations = await asyncio.gather(*tasks)
 
             row.update(dict(zip(MODELS, translations, strict=True)))
+            await asyncio.to_thread(append_result, output_file, header, row)
 
-            results.append(row)
-
-        # Save to CSV
-        output_file = Path('translation_comparison.csv')
-        return header, results, output_file
+        log.info('Comparison saved to %s', output_file.absolute())
+        return output_file
     finally:
         await client.close()
 
 
 if __name__ == '__main__':
-    comparison = asyncio.run(main())
-    if comparison is not None:
-        header, results, output_file = comparison
-        write_comparison(output_file, header, results)
+    asyncio.run(main())
