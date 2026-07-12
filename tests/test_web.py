@@ -137,7 +137,11 @@ async def test_scrape_one_page(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(ids) == 2
     assert 'VID-001' in ids
     assert 'VID-002' in ids
-    mock_get.assert_called_with(url=f'{javbus.host}/star/ACTOR-1/1')
+    mock_get.assert_called_once_with(url=f'{javbus.host}/star/ACTOR-1')
+
+    mock_get.reset_mock()
+    await javbus.scrape_one_page('ACTOR-1', 2)
+    mock_get.assert_called_once_with(url=f'{javbus.host}/star/ACTOR-1/2')
 
 
 @pytest.mark.asyncio

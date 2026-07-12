@@ -45,7 +45,8 @@ class javbus:  # noqa: N801
         reraise=True,
     )
     async def scrape_one_page(cls, actor_id: str, page: int) -> list[str]:
-        res = await cls._get_client().get(url=f'{cls.host}/star/{actor_id}/{page}')
+        url = f'{cls.host}/star/{actor_id}' if page == 1 else f'{cls.host}/star/{actor_id}/{page}'
+        res = await cls._get_client().get(url=url)
         res.raise_for_status()
         doc = PyQuery(res.text)
         videos = doc('a[class="movie-box"]')
