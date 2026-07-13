@@ -1,19 +1,30 @@
 """获取和转换影片的各类番号(DVD ID, DMM cid, DMM pid)"""
+
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from src.core import config
+if TYPE_CHECKING:
+    from src.core.config import Avid
 
-cfg = config.avid
 MIN_BRAND_LENGTH = 2
 
 
+def _get_config() -> 'Avid':
+    """Load ID parsing configuration only for operations that require it."""
+    from src.core import config  # noqa: PLC0415
+
+    return config.avid
+
+
 def get_avid(title: str) -> str:
+    cfg = _get_config()
     title = title.replace('/', '')
     for s in cfg.get_id_exceptions:
         if s in title.upper():
             return s
     return get_id(title).upper()
+
 
 def get_brand(avid: str) -> str | None:
     if '-' not in avid:
@@ -23,6 +34,7 @@ def get_brand(avid: str) -> str | None:
         brand = brand[:MIN_BRAND_LENGTH]
     return brand
 
+
 def get_cd(title: str) -> str | None:
     if result := re.search(r'CD(\d+).', title):
         return result.group(1)
@@ -31,6 +43,7 @@ def get_cd(title: str) -> str | None:
 
 def get_id(filepath_str: str) -> str:  # noqa: C901, PLR0911, PLR0912
     """从给定的文件路径中提取番号(DVD ID)"""
+    cfg = _get_config()
     filepath = Path(filepath_str)
     # 通常是接收文件的路径, 当然如果是普通字符串也可以
     ignore_pattern = re.compile('|'.join(cfg.ignored_id_pattern))
@@ -112,4 +125,3 @@ def get_id(filepath_str: str) -> str:  # noqa: C901, PLR0911, PLR0912
     if filepath.parent.name != '':  # haven't reach '.' or '/'
         return get_avid(filepath.parent.name)
     return ''
-

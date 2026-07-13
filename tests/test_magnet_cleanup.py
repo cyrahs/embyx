@@ -8,7 +8,7 @@ from src.utils import magnet
 
 
 def test_close_magnet_logger_removes_file_handler(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # noqa: ANN001
-    monkeypatch.setattr(magnet.config, 'log_dir', tmp_path)
+    monkeypatch.setattr(magnet, '_configured_log_dir', tmp_path)
 
     magnet._get_magnet_logger()  # noqa: SLF001
 
@@ -19,6 +19,29 @@ def test_close_magnet_logger_removes_file_handler(monkeypatch: pytest.MonkeyPatc
     magnet.close_magnet_logger()
 
     assert not [handler for handler in magnet_logger.handlers if getattr(handler, magnet._MAGNET_HANDLER_MARKER, False)]  # noqa: SLF001
+
+
+def test_configure_log_dir_can_disable_file_logging(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # noqa: ANN001
+    monkeypatch.setattr(magnet, '_configured_log_dir', tmp_path)
+    magnet._get_magnet_logger()  # noqa: SLF001
+
+    magnet.configure_log_dir(None)
+
+    magnet_logger = logging.getLogger('magnet_chosen')
+    assert not [handler for handler in magnet_logger.handlers if getattr(handler, magnet._MAGNET_HANDLER_MARKER, False)]  # noqa: SLF001
+    assert magnet._get_magnet_logger() is magnet_logger  # noqa: SLF001
+
+
+def test_unconfigured_log_dir_uses_legacy_config_lazily(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # noqa: ANN001
+    from src.core import config  # noqa: PLC0415
+
+    monkeypatch.setattr(config, 'log_dir', tmp_path)
+    monkeypatch.setattr(magnet, '_configured_log_dir', magnet._LOG_DIR_UNSET)  # noqa: SLF001
+
+    magnet._get_magnet_logger().info('legacy')  # noqa: SLF001
+    magnet.close_magnet_logger()
+
+    assert (tmp_path / 'magnets.log').read_text(encoding='utf-8') == 'legacy\n'
 
 
 @pytest.mark.asyncio

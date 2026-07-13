@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from pathlib import Path
 from urllib.parse import unquote
 
 import httpx
@@ -9,13 +10,41 @@ import nyaapy.torrent
 from pyquery import PyQuery
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from src.core import config, logger
 from src.utils.avid import get_avid
 
-log = logger.get('magnet')
+log = logging.getLogger('embyx.magnet')
 
 # Create separate magnet log handler
 _MAGNET_HANDLER_MARKER = '_embyx_magnet_file_handler'
+_NOTICE_LEVEL = 25
+_LOG_DIR_UNSET = object()
+_configured_log_dir: Path | None | object = _LOG_DIR_UNSET
+
+
+def configure_log_dir(log_dir: str | Path | None) -> None:
+    """Configure chosen-magnet logging without loading legacy settings.
+
+    Passing ``None`` explicitly disables the file handler. When this function
+    is never called, legacy callers continue to obtain ``config.log_dir``
+    lazily when the first magnet is selected.
+    """
+    global _configured_log_dir
+
+    close_magnet_logger()
+    _configured_log_dir = Path(log_dir).expanduser() if log_dir is not None else None
+
+
+def _get_log_dir() -> Path | None:
+    if _configured_log_dir is not _LOG_DIR_UNSET:
+        return _configured_log_dir if isinstance(_configured_log_dir, Path) else None
+
+    from src.core import config  # noqa: PLC0415
+
+    return config.log_dir
+
+
+def _log_notice(message: str, *args: object) -> None:
+    log.log(_NOTICE_LEVEL, message, *args)
 
 
 def _get_magnet_logger() -> logging.Logger:
@@ -25,9 +54,13 @@ def _get_magnet_logger() -> logging.Logger:
     if any(getattr(handler, _MAGNET_HANDLER_MARKER, False) for handler in magnet_logger.handlers):
         return magnet_logger
 
+    log_dir = _get_log_dir()
+    if log_dir is None:
+        return magnet_logger
+
     try:
-        config.log_dir.mkdir(parents=True, exist_ok=True)
-        magnet_file_handler = logging.FileHandler(config.log_dir / 'magnets.log', encoding='utf-8')
+        log_dir.mkdir(parents=True, exist_ok=True)
+        magnet_file_handler = logging.FileHandler(log_dir / 'magnets.log', encoding='utf-8')
     except OSError as exc:
         log.warning('Magnet file logging disabled: %s', exc)
         return magnet_logger
@@ -103,7 +136,6 @@ class sukebei:  # noqa: N801
                 raise
         return nyaapy.parser.parse_nyaa(res.text, limit=None, site=cls.site)
 
-
     @classmethod
     async def get_magnet(cls, keyword: str, category: int = 2, subcategory: int = 2, filters: int = 0, page: int = 0) -> str | None:
         try:
@@ -133,7 +165,7 @@ class sukebei:  # noqa: N801
         if trusted and trusted[0] not in display_result:
             display_result.append(trusted[0])
         # logging
-        log.notice('Found %d results for %s from searching:', len(result), keyword)
+        _log_notice('Found %d results for %s from searching:', len(result), keyword)
         log_lines: list[str] = ['Display top 5 largest + trusted:']
         for i, r in enumerate(display_result):
             trusted = '--'
@@ -153,6 +185,7 @@ class sukebei:  # noqa: N801
 
         return chosen_magnet
 
+
 class rss:  # noqa: N801
     @classmethod
     def get_magnet(cls, item: dict) -> dict | None:
@@ -161,14 +194,14 @@ class rss:  # noqa: N801
         except KeyError:
             log.warning('Error getting magnets from rss item: %s', item)
             return None
-        rows = PyQuery(content)("table tbody tr").filter(lambda _, el: PyQuery(el)("a[href^='magnet:']").length)
+        rows = PyQuery(content)('table tbody tr').filter(lambda _, el: PyQuery(el)("a[href^='magnet:']").length)
         avid = get_avid(item['title'])
 
         results = []
         for row in rows.items():
             a = row("td:nth-child(1) a[href^='magnet:']")
-            r = a.attr("href")
-            size = row("td:nth-child(2)").text().strip()
+            r = a.attr('href')
+            size = row('td:nth-child(2)').text().strip()
             try:
                 size_int = humanfriendly.parse_size(size)
             except humanfriendly.InvalidSize:
@@ -181,12 +214,12 @@ class rss:  # noqa: N801
             except ValueError:
                 r = r.split('&')[0]
                 name = 'Unknown'
-            results.append({"magnet": f'{r}&dn={avid}', "size": size, "name": name, 'size_int': size_int})
+            results.append({'magnet': f'{r}&dn={avid}', 'size': size, 'name': name, 'size_int': size_int})
         if not results:
             return None
         results.sort(key=lambda x: x['size_int'], reverse=True)
         # logging
-        log.notice('Found %d results for %s from RSS:', len(results), avid)
+        _log_notice('Found %d results for %s from RSS:', len(results), avid)
         log_lines: list[str] = ['Display top 5 largest:']
         for i, r in enumerate(results[:5]):
             mark = '✅' if i == 0 else '--'
