@@ -1,6 +1,7 @@
 """Configuration-light compatibility API for the Fill Actor web service."""
 
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from src.utils import magnet, web
@@ -10,9 +11,17 @@ _runtime_log_dir = os.environ.get('EMBYX_RUNTIME_LOG_DIR')
 magnet.configure_log_dir(Path(_runtime_log_dir).expanduser() if _runtime_log_dir else None)
 
 
-async def list_actor_video_ids(actor_id: str) -> tuple[str, ...]:
+PageProgressCallback = Callable[[int, int | None, int | None], Awaitable[None] | None]
+
+
+async def list_actor_video_ids(
+    actor_id: str,
+    progress_callback: PageProgressCallback | None = None,
+) -> tuple[str, ...]:
     """Return the video IDs published for one JavBus actor."""
-    return tuple(await web.javbus.scrape(actor_id))
+    if progress_callback is None:
+        return tuple(await web.javbus.scrape(actor_id))
+    return tuple(await web.javbus.scrape(actor_id, progress_callback=progress_callback))
 
 
 def resolve_brand(video_id: str) -> str | None:

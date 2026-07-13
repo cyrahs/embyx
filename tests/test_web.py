@@ -1,9 +1,11 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
-from src.utils.web import javbus
+from src.utils.web import JavBusPaginationError, javbus
 
 # Sample HTML content simulating the main page
 MAIN_PAGE_HTML = """
@@ -122,7 +124,7 @@ async def test_scrape_one_page(monkeypatch: pytest.MonkeyPatch) -> None:
     # Sample HTML for a page with videos
     html = """
     <html>
-        <a class="movie-box" href="https://www.javbus.com/VID-001"></a>
+        <a class="movie-box featured" href="https://www.javbus.com/VID-001/"></a>
         <a class="movie-box" href="https://www.javbus.com/VID-002"></a>
         <a class="movie-box" href="https://www.javbus.com/VID-001"></a> <!-- Duplicate -->
     </html>
@@ -162,7 +164,8 @@ async def test_get_total_page(monkeypatch: pytest.MonkeyPatch) -> None:
     set_javbus_client(monkeypatch, mock_get)
     total_page = await javbus.get_total_page('ACTOR-1')
     assert total_page == 3
-    mock_get.assert_called_with(url=f'{javbus.host}/star/ACTOR-1')
+    mock_get.assert_any_call(url=f'{javbus.host}/star/ACTOR-1')
+    mock_get.assert_any_call(url=f'{javbus.host}/star/ACTOR-1/4')
 
     # Test single page (no links)
     mock_response.text = '<html></html>'
@@ -188,6 +191,103 @@ async def test_scrape() -> None:
 
         mock_get_total_page.assert_called_once_with('ACTOR-1')
         assert mock_scrape_one_page.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_total_page_follows_sliding_windows_through_page_26(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    windows = {
+        1: range(1, 11),
+        10: range(6, 16),
+        15: range(11, 21),
+        20: range(16, 26),
+        25: range(17, 27),
+        26: (),
+    }
+    requested: list[int] = []
+
+    async def get(*, url: str) -> httpx.Response:
+        page = 1 if url.endswith('/ACTOR-1') else int(url.rsplit('/', 1)[-1])
+        requested.append(page)
+        request = httpx.Request('GET', url)
+        if page == 27:
+            return httpx.Response(404, request=request)
+        links = ''.join(f'<a href="/star/ACTOR-1/{number}">{number}</a>' for number in windows[page])
+        return httpx.Response(
+            200,
+            text=f'<a class="movie-box" href="/{page:03d}"></a>{links}',
+            request=request,
+        )
+
+    set_javbus_client(monkeypatch, AsyncMock(side_effect=get))
+
+    assert await javbus.get_total_page('ACTOR-1') == 26
+    assert requested == [1, 10, 15, 20, 25, 26, 27]
+
+
+@pytest.mark.asyncio
+async def test_scrape_reports_page_progress_and_globally_deduplicates() -> None:
+    events: list[tuple[int, int | None, int | None]] = []
+
+    async def progress(completed: int, total: int | None, current: int | None) -> None:
+        events.append((completed, total, current))
+
+    async def scrape_page(_actor_id: str, page: int) -> list[str]:
+        await asyncio.sleep((4 - page) * 0.001)
+        return {1: ['A', 'B'], 2: ['B', 'C'], 3: ['D']}[page]
+
+    with (
+        patch.object(javbus, 'get_total_page', new_callable=AsyncMock, return_value=3) as total,
+        patch.object(javbus, 'scrape_one_page', new_callable=AsyncMock, side_effect=scrape_page),
+    ):
+        ids = await javbus.scrape('ACTOR-1', progress_callback=progress)
+
+    assert ids == ['A', 'B', 'C', 'D']
+    total.assert_awaited_once_with('ACTOR-1', progress_callback=progress)
+    assert events[:2] == [(0, None, None), (0, 3, None)]
+    assert [event[0] for event in events[2:]] == [1, 2, 3]
+    assert {event[2] for event in events[2:]} == {1, 2, 3}
+
+
+@pytest.mark.asyncio
+async def test_terminal_404_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    url = f'{javbus.host}/star/ACTOR-1/2'
+    response = httpx.Response(404, request=httpx.Request('GET', url))
+    mock_get = AsyncMock(return_value=response)
+    set_javbus_client(monkeypatch, mock_get)
+
+    assert await javbus.scrape_one_page('ACTOR-1', 2) == []
+    mock_get.assert_awaited_once_with(url=url)
+
+
+@pytest.mark.asyncio
+async def test_pagination_limit_fails_instead_of_returning_partial_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    html = """
+    <a class="movie-box" href="/VID-001"></a>
+    <a href="/star/ACTOR-1/3">3</a>
+    """
+    response = MagicMock(text=html, status_code=200)
+    set_javbus_client(monkeypatch, AsyncMock(return_value=response))
+    monkeypatch.setattr(javbus, 'max_actor_pages', 3)
+
+    with pytest.raises(JavBusPaginationError, match='safety limit'):
+        await javbus.get_total_page('ACTOR-1')
+
+
+@pytest.mark.asyncio
+async def test_scrape_rejects_an_empty_page_inside_discovered_range() -> None:
+    async def scrape_page(_actor_id: str, page: int) -> list[str]:
+        return {1: ['A'], 2: [], 3: ['C']}[page]
+
+    with (
+        patch.object(javbus, 'get_total_page', new_callable=AsyncMock, return_value=3),
+        patch.object(javbus, 'scrape_one_page', new_callable=AsyncMock, side_effect=scrape_page),
+        pytest.raises(JavBusPaginationError, match='empty page at 2'),
+    ):
+        await javbus.scrape('ACTOR-1')
 
 
 @pytest.mark.asyncio

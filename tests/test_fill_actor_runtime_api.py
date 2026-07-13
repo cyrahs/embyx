@@ -24,6 +24,16 @@ async def test_fill_actor_api_delegates_to_runtime_callables(monkeypatch: pytest
 
 
 @pytest.mark.asyncio
+async def test_fill_actor_api_forwards_optional_page_progress(monkeypatch: pytest.MonkeyPatch) -> None:
+    scrape = AsyncMock(return_value=['ABC-001'])
+    progress = AsyncMock()
+    monkeypatch.setattr(fill_actor_api.web.javbus, 'scrape', scrape)
+
+    assert await fill_actor_api.list_actor_video_ids('actor-1', progress_callback=progress) == ('ABC-001',)
+    scrape.assert_awaited_once_with('actor-1', progress_callback=progress)
+
+
+@pytest.mark.asyncio
 async def test_fill_actor_api_closes_all_owned_resources(monkeypatch: pytest.MonkeyPatch) -> None:
     close_web = AsyncMock()
     close_sukebei = AsyncMock()
