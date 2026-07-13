@@ -1,3 +1,4 @@
+import logging
 import random
 import re
 
@@ -7,9 +8,7 @@ from pyquery import PyQuery
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from tqdm.asyncio import tqdm_asyncio
 
-from src.core import logger
-
-log = logger.get('javbus')
+log = logging.getLogger('embyx.javbus')
 
 
 class javbus:  # noqa: N801
