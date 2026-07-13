@@ -4,21 +4,32 @@ from typing import Any
 import grpc
 from google.protobuf import empty_pb2
 
-from src.core import config
-
 from . import clouddrive_pb2, clouddrive_pb2_grpc
 
 GRPC_TIMEOUT_SECONDS = 30.0
 
 
 class CloudDriveClient:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        address: str | None = None,
+        api_token: str | None = None,
+        *,
+        secure: bool = True,
+    ) -> None:
         """初始化 CloudDrive 客户端
 
         Args:
             address: 服务器地址 (例如 'localhost:19798')
+            api_token: CloudDrive API 令牌
+            secure: 是否使用 TLS 连接
         """
-        self.channel = grpc.secure_channel(config.clouddrive.address, grpc.ssl_channel_credentials())
+        if address is None or api_token is None:
+            legacy_config = _get_legacy_config()
+            address = legacy_config.address if address is None else address
+            api_token = legacy_config.api_token if api_token is None else api_token
+        self._api_token = api_token
+        self.channel = grpc.secure_channel(address, grpc.ssl_channel_credentials()) if secure else grpc.insecure_channel(address)
         self.stub = clouddrive_pb2_grpc.CloudDriveFileSrvStub(self.channel)
 
     def close(self) -> None:
@@ -27,7 +38,7 @@ class CloudDriveClient:
 
     def _create_authorized_metadata(self) -> list[tuple[str, str]]:
         """创建带授权头的元数据"""
-        return [('authorization', f'Bearer {config.clouddrive.api_token}')]
+        return [('authorization', f'Bearer {self._api_token}')]
 
     def get_system_info(self) -> clouddrive_pb2.CloudDriveSystemInfo:
         """获取系统信息(无需认证)
@@ -179,15 +190,23 @@ class CloudDriveClient:
         Returns:
             None
         """
+        legacy_config = _get_legacy_config()
         request = clouddrive_pb2.ClearOfflineFileRequest(
             filter=clouddrive_pb2.ClearOfflineFileRequest.Filter.Finished,
-            cloudName=config.clouddrive.cloud_name,
-            cloudAccountId=config.clouddrive.cloud_account_id,
+            cloudName=legacy_config.cloud_name,
+            cloudAccountId=legacy_config.cloud_account_id,
             deleteFiles=False,
             path=path,
         )
         metadata = self._create_authorized_metadata()
         self.stub.ClearOfflineFiles(request, metadata=metadata, timeout=GRPC_TIMEOUT_SECONDS)
+
+
+def _get_legacy_config() -> Any:
+    """Load the full application configuration only for legacy default callers."""
+    from src.core import config  # noqa: PLC0415
+
+    return config.clouddrive
 
 
 _client: CloudDriveClient | None = None
