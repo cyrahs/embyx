@@ -14,6 +14,12 @@ from src.embyx_monitor_runtime import fill_actor_api
 from src.utils.clouddrive import clouddrive_pb2
 
 
+def test_legacy_runtime_import_path_is_preserved() -> None:
+    legacy_api = importlib.import_module('src.embyx_runtime.fill_actor_api')
+
+    assert legacy_api is fill_actor_api
+
+
 @pytest.mark.asyncio
 async def test_fill_actor_api_delegates_to_runtime_callables(monkeypatch: pytest.MonkeyPatch) -> None:
     scrape = AsyncMock(return_value=['ABC-001', 'ABC-002'])

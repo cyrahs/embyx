@@ -7,7 +7,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 # Create .venv
-RUN uv sync --frozen --no-dev --compile-bytecode --no-cache
+RUN uv sync --locked --no-dev --compile-bytecode --no-cache
 
 # Runner
 FROM python:3.13-slim-trixie AS runner

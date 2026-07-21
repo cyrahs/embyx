@@ -5,9 +5,13 @@ build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
 
 # Virtual environments
-.venv
+.venv/
 
 # resources
 prompts/
@@ -17,3 +21,4 @@ temp*
 log
 config.toml
 archive/
+data/

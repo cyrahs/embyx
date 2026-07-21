@@ -1,7 +1,7 @@
 [project]
 name = "embyx-monitor"
 version = "0.0.3"
-description = "Add your description here"
+description = "Media archive, RSS ingestion, STRM mapping, and monitoring automation"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -33,7 +33,9 @@ extend-exclude = [
 [tool.ruff.lint]
 select = ['ALL']
 ignore = [
+  'COM812',  # Trailing comma conflicts with the formatter
   'Q000',    # Double quotes
+  'Q003',    # Avoidable escaped quote conflicts with the formatter
   'PLC0414', # Import alias
   'D407',    # Lines for docstrings
   'ANN401',  # Any type

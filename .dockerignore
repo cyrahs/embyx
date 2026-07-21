@@ -22,13 +22,24 @@ venv/
 .DS_Store
 
 # Tests, build, dist
-pytest.cache/
+.pytest_cache/
+.ruff_cache/
 .coverage*
+htmlcov/
 dist/
 build/
 .eggs/
 *.egg-info/
 
-# Others
+# Local configuration and runtime data
 .env*
+config.toml
+archive/
+data/
+log/
+prompts/
+temp*
+
+# Other generated files
+*.json
 *.log
