@@ -12,7 +12,7 @@ from pyquery import PyQuery
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from tqdm.asyncio import tqdm_asyncio
 
-log = logging.getLogger('embyx.javbus')
+log = logging.getLogger('embyx-monitor.javbus')
 
 PageProgressCallback = Callable[[int, int | None, int | None], Awaitable[None] | None]
 

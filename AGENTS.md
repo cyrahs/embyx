@@ -1,4 +1,4 @@
-# embyx — Agent Guide (AGENTS.md)
+# embyx-monitor — Agent Guide (AGENTS.md)
 
 This repo is a small Python project using a `pyproject.toml` + `uv.lock` workflow and a `src/` + `tests/` layout. Treat it as a “keep things stable” codebase: make focused changes, avoid drive‑by refactors, and keep the developer experience predictable.
 

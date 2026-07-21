@@ -97,7 +97,7 @@ class Config(BaseSettings):
         )
 
 def _use_test_config() -> bool:
-    if os.environ.get('EMBYX_USE_REAL_CONFIG'):
+    if os.environ.get('EMBYX_MONITOR_USE_REAL_CONFIG') or os.environ.get('EMBYX_USE_REAL_CONFIG'):
         return False
     return 'pytest' in sys.modules or os.environ.get('PYTEST_CURRENT_TEST') is not None
 

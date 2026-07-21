@@ -11,7 +11,16 @@ from typing import Any
 from src.utils import magnet, web
 from src.utils.avid import get_brand
 
-_runtime_log_dir = os.environ.get('EMBYX_RUNTIME_LOG_DIR')
+
+def _get_runtime_env(name: str) -> str | None:
+    """Read a renamed runtime variable, falling back to its legacy name."""
+    value = os.environ.get(f'EMBYX_MONITOR_RUNTIME_{name}')
+    if value is not None:
+        return value
+    return os.environ.get(f'EMBYX_RUNTIME_{name}')
+
+
+_runtime_log_dir = _get_runtime_env('LOG_DIR')
 magnet.configure_log_dir(Path(_runtime_log_dir).expanduser() if _runtime_log_dir else None)
 
 
@@ -136,17 +145,18 @@ def _get_cloud_client() -> Any:
     if _cloud_client is not None:
         return _cloud_client
 
-    address = os.environ.get('EMBYX_RUNTIME_CLOUDDRIVE_ADDRESS')
-    api_token = os.environ.get('EMBYX_RUNTIME_CLOUDDRIVE_API_TOKEN')
+    address = _get_runtime_env('CLOUDDRIVE_ADDRESS')
+    api_token = _get_runtime_env('CLOUDDRIVE_API_TOKEN')
     if not address:
-        msg = 'EMBYX_RUNTIME_CLOUDDRIVE_ADDRESS is required for CloudDrive operations'
+        msg = 'EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_ADDRESS is required for CloudDrive operations'
         raise RuntimeError(msg)
     if not api_token:
-        msg = 'EMBYX_RUNTIME_CLOUDDRIVE_API_TOKEN is required for CloudDrive operations'
+        msg = 'EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_API_TOKEN is required for CloudDrive operations'
         raise RuntimeError(msg)
+    secure_value = _get_runtime_env('CLOUDDRIVE_SECURE')
     secure = _parse_boolean_env(
-        'EMBYX_RUNTIME_CLOUDDRIVE_SECURE',
-        os.environ.get('EMBYX_RUNTIME_CLOUDDRIVE_SECURE', 'true'),
+        'EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_SECURE',
+        secure_value if secure_value is not None else 'true',
     )
 
     from src.utils.clouddrive.clouddrive import CloudDriveClient  # noqa: PLC0415

@@ -47,10 +47,10 @@ class TqdmLoggingHandler(logging.Handler):
         self.flush()
 
 
-app_logger = logging.getLogger('embyx')
+app_logger = logging.getLogger('embyx-monitor')
 
-_CONSOLE_HANDLER_MARKER = '_embyx_console_handler'
-_FILE_HANDLER_MARKER = '_embyx_file_handler'
+_CONSOLE_HANDLER_MARKER = '_embyx_monitor_console_handler'
+_FILE_HANDLER_MARKER = '_embyx_monitor_file_handler'
 _CONFIGURED = False
 
 

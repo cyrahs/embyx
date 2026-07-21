@@ -1,4 +1,4 @@
-# embyx
+# embyx-monitor
 
 Small Python automation project for media archive, mapping, RSS, and monitor workflows.
 

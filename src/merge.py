@@ -51,7 +51,7 @@ def merge(cds: list[Path], dst: Path) -> bool:
     if dst.exists():
         log.warning('%s already exists, skip', dst)
         return False
-    tmp_dir_ctx = tempfile.TemporaryDirectory(prefix='embyx-merge-', dir='./data')
+    tmp_dir_ctx = tempfile.TemporaryDirectory(prefix='embyx-monitor-merge-', dir='./data')
     tmp_dir_path = Path(tmp_dir_ctx.name)
     txt_path = tmp_dir_path / 'merge.txt'
     tmp_output_path = tmp_dir_path / 'output.mp4'

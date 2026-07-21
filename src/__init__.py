@@ -1,1 +1,1 @@
-"""Embyx application package."""
+"""embyx-monitor application package."""

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 
-from src.embyx_runtime import fill_actor_api
+from src.embyx_monitor_runtime import fill_actor_api
 from src.utils.clouddrive import clouddrive_pb2
 
 
@@ -225,9 +225,9 @@ async def test_cloud_runtime_builds_injected_insecure_client_from_env(monkeypatc
     constructor = Mock(return_value=client)
     monkeypatch.setattr(cloud_module, 'CloudDriveClient', constructor)
     monkeypatch.setattr(fill_actor_api, '_cloud_client', None)
-    monkeypatch.setenv('EMBYX_RUNTIME_CLOUDDRIVE_ADDRESS', 'clouddrive.internal:80')
-    monkeypatch.setenv('EMBYX_RUNTIME_CLOUDDRIVE_API_TOKEN', 'test-token')
-    monkeypatch.setenv('EMBYX_RUNTIME_CLOUDDRIVE_SECURE', 'false')
+    monkeypatch.setenv('EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_ADDRESS', 'clouddrive.internal:80')
+    monkeypatch.setenv('EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_API_TOKEN', 'test-token')
+    monkeypatch.setenv('EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_SECURE', 'false')
 
     assert await fill_actor_api.list_cloud_directory('/cloud/library') == ()
 
@@ -294,7 +294,7 @@ class ConfigImportBlocker(importlib.abc.MetaPathFinder):
         return None
 
 sys.meta_path.insert(0, ConfigImportBlocker())
-from src.embyx_runtime import fill_actor_api as api
+from src.embyx_monitor_runtime import fill_actor_api as api
 
 api.web.javbus.get_total_page = AsyncMock(return_value=1)
 api.web.javbus.scrape_one_page = AsyncMock(return_value=['ABC-001'])
@@ -315,8 +315,12 @@ asyncio.run(main())
 assert 'src.core.config' not in sys.modules
 """
     env = os.environ.copy()
-    env['EMBYX_RUNTIME_LOG_DIR'] = str(tmp_path)
+    env['EMBYX_MONITOR_RUNTIME_LOG_DIR'] = str(tmp_path)
+    env.pop('EMBYX_MONITOR_USE_REAL_CONFIG', None)
     env.pop('EMBYX_USE_REAL_CONFIG', None)
+    env.pop('EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_ADDRESS', None)
+    env.pop('EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_API_TOKEN', None)
+    env.pop('EMBYX_MONITOR_RUNTIME_CLOUDDRIVE_SECURE', None)
     env.pop('EMBYX_RUNTIME_CLOUDDRIVE_ADDRESS', None)
     env.pop('EMBYX_RUNTIME_CLOUDDRIVE_API_TOKEN', None)
     env.pop('EMBYX_RUNTIME_CLOUDDRIVE_SECURE', None)

@@ -12,10 +12,10 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from src.utils.avid import get_avid
 
-log = logging.getLogger('embyx.magnet')
+log = logging.getLogger('embyx-monitor.magnet')
 
 # Create separate magnet log handler
-_MAGNET_HANDLER_MARKER = '_embyx_magnet_file_handler'
+_MAGNET_HANDLER_MARKER = '_embyx_monitor_magnet_file_handler'
 _NOTICE_LEVEL = 25
 _LOG_DIR_UNSET = object()
 _configured_log_dir: Path | None | object = _LOG_DIR_UNSET
